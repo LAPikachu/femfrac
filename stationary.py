@@ -6,7 +6,7 @@ from topoptlab.fem import create_matrixinds
 from topoptlab.elements.bilinear_quadrilateral import create_edofMat as create_edofMat2d
 from topoptlab.elements.trilinear_hexahedron import create_edofMat as create_edofMat3d
 # default application case that provides boundary conditions, etc.
-from topoptlab.example_bc.heat_conduction import heatplate_2d, heatplate_3d
+from topoptlab.example_bc.heat_conduction import rectangle_2d, heatplate_2d, heatplate_3d
 # different elements/physics
 from topoptlab.elements.poisson_2d import lk_poisson_2d
 from topoptlab.elements.poisson_3d import lk_poisson_3d
@@ -19,6 +19,7 @@ from topoptlab.output_designs import export_vtk
 from topoptlab.material_interpolation import simp
 from topoptlab.fem import interpolate
 from topoptlab.elements.bilinear_quadrilateral  import shape_functions_dxi, invjacobian, invjacobian_rectangle
+from femfrac.fracture import von_mises_stress, weaken_structure
 # debugging
 import os
 # MAIN DRIVER
@@ -81,7 +82,7 @@ def fem_stationary_heatconduction(nelx,
         ndim = 2
         lk = lk_poisson_2d
         create_edofMat = create_edofMat2d
-        bc = heatplate_2d
+        bc = rectangle_2d
     else:
         ndim = 3
         lk = lk_poisson_3d
@@ -174,7 +175,6 @@ def fem_stationary_heatconduction(nelx,
     #print(([[1,1,1,1,1,1]][...,None]*shape_functions_dxi(0,0)).sum(axis=1))
     '''
     if export:
-        print(os.getcwd())
         export_vtk(filename=file,
                    nelx=nelx,
                    nely=nely,
@@ -188,22 +188,9 @@ def fem_stationary_heatconduction(nelx,
 
 def burn_max_element(T, xPhys, edofMat, nelz):
     # interpolate over element
-    if nelz != None:
-        from topoptlab.elements.trilinear_hexahedron import shape_functions_dxi, invjacobian, invjacobian_cuboid
-        delta_N_e = shape_functions_dxi(0,0,0)
-        J_e_inv = invjacobian_cuboid(2,2,2) 
-        B_e = delta_N_e @ J_e_inv
-    else:
-        delta_N_e = shape_functions_dxi(0,0)
-        J_e_inv = invjacobian_rectangle(2,2) 
-        B_e = delta_N_e @ J_e_inv
-    delta_T  = (T[edofMat,0][...,None]*B_e).sum(axis=1)
-    C = xPhys.reshape(-1,1)
-    sigma = C * delta_T 
-    sigma_von_mises = np.sum(np.sqrt(sigma ** 2), axis=1, keepdims=True)
+    sigma_von_mises = von_mises_stress(T, xPhys, edofMat, nelz)
     max_element  = np.argmax(sigma_von_mises)
-    xPhys[max_element] = 0
-    print(max_element)
+    xPhys = weaken_structure(max_element, xPhys)
 
     return xPhys 
 
@@ -211,9 +198,13 @@ if __name__ == "__main__":
     #
     nelx = 20
     nely = 20
-    nelz = 20
-    steps = 10
+    nelz = None
+    steps = 20
     #
+    if nelz is None:
+        ndim = 2
+    else:
+        ndim=3
     import sys
     if len(sys.argv)>1: 
         nelx = int(sys.argv[1])
@@ -222,11 +213,14 @@ if __name__ == "__main__":
     if len(sys.argv)>3: 
         nelz = int(sys.argv[3])
     # 
-    xPhys = (np.random.uniform(0.5,1,size=100))
-    T, xPhys, edofMat = fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz, file=f"examples/fem/heat_conduction/stationary_heatconduction_0")
+    n = np.array([nelx,nely,nelz][:ndim])
+    xPhys = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
+    xPhys[200:210] = 0 
+    # get element stiffness matrix and element o
+    T, xPhys, edofMat = fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz,xPhys=xPhys ,file=f"visualisation/stationary_heatconduction_0")
     xPhys = burn_max_element(T, xPhys, edofMat, nelz)
     for step in range(1,steps):
-        T, xPhys, edofMat =  fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys, file=f"examples/fem/heat_conduction/stationary_heatconduction_{step}")
+        T, xPhys, edofMat =  fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys, file=f"visualisation/stationary_heatconduction_{step}")
         xPhys = burn_max_element(T, xPhys, edofMat, nelz)
         
 
