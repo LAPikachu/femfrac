@@ -190,13 +190,13 @@ def fem_stationary_heatconduction(nelx,
 
 def get_x_coordinate(i, nelx, nely, nelz):
     if nelz==None:
-        return i%nely
+        return i//nelx
     else:
         pass
 
-def get_x_coordinate(i, nelx, nely, nelz):
+def get_y_coordinate(i, nelx, nely, nelz):
     if nelz==None:
-        return i//nely
+        return i%nelx
     else:
         pass
 
@@ -221,8 +221,15 @@ def ruler_sequence(levels: int) -> list[int]:
 def insert_hierarchical_gaps(xPhys, nelx, nely, nelz, steps, delta_c):
     if nelz==None:
         n=nelx*nely 
-        heights = np.array(ruler_sequence_iter(steps))
+        heights = np.array(ruler_sequence(steps))
         middle_x = get_x_coordinate(n/2, nelx, nely, nelz)
+        for i, c in enumerate(xPhys):
+            x_coord = get_x_coordinate(i, nelx, nely, nelz)
+            y_coord = get_y_coordinate(i, nelx, nely, nelz)
+            delta_middle = middle_x - x_coord
+            if delta_middle > heights[y_coord-1] and heights[y_coord-1] != 0 and x_coord > delta_middle - 10:
+                xPhys[i] = 0.1
+        return xPhys
     else:
         pass
 
@@ -231,7 +238,7 @@ if __name__ == "__main__":
     nelx = 128
     nely = 128
     nelz = None
-    steps = 101
+    steps = 100
     #
     if nelz is None:
         ndim = 2
@@ -248,9 +255,10 @@ if __name__ == "__main__":
     n = np.array([nelx,nely,nelz][:ndim])
     xPhys = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
     #xPhys = make_gradient(xPhys, nelx, nely, nelz)
-    xPhys[5000:]-= 0.2
-    xPhys[4500:4510] = 0 
-
+    xPhys = insert_hierarchical_gaps(xPhys, nelx, nely, nelz, 6, 0.2)
+    precrack_i = int((128*128)/2)+128*3
+    precrack_e = precrack_i + 10
+    xPhys[precrack_i:precrack_i+10] = 0
     # get element stiffness matrix and element o
     T, xPhys, edofMat, sigma_von_mises = fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz,xPhys=xPhys ,file=f"visualisation/stationary_heatconduction_0")
     xPhys = burn_max_element(sigma_von_mises, xPhys)
@@ -258,4 +266,3 @@ if __name__ == "__main__":
         T, xPhys, edofMat, sigma_von_mises =  fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys, file=f"visualisation/stationary_heatconduction_{step}")
         xPhys = burn_max_element(sigma_von_mises, xPhys)
         
-
