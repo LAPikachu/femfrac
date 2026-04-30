@@ -174,6 +174,7 @@ def fem_stationary_heatconduction(nelx,
     print((T[edofMat,0][...,None]*shape_functions_dxi(0,0)).sum(axis=1).shape)
     #print(([[1,1,1,1,1,1]][...,None]*shape_functions_dxi(0,0)).sum(axis=1))
     '''
+    sigma_von_mises = von_mises_stress(T, xPhys, edofMat, nelz)
     if export:
         export_vtk(filename=file,
                    nelx=nelx,
@@ -182,24 +183,55 @@ def fem_stationary_heatconduction(nelx,
                    xPhys=xPhys,
                    elem_size=l,
                    u=T,
-                   f=f)
+                   f=f, 
+                   stress_vm=sigma_von_mises)
     
-    return T, xPhys, edofMat
+    return T, xPhys, edofMat, sigma_von_mises
 
-def burn_max_element(T, xPhys, edofMat, nelz):
+def get_x_coordinate(i, nelx, nely, nelz):
+    if nelz==None:
+        return i%nely
+    else:
+        pass
+
+def get_x_coordinate(i, nelx, nely, nelz):
+    if nelz==None:
+        return i//nely
+    else:
+        pass
+
+
+def burn_max_element(sigma_von_mises, xPhys):
     # interpolate over element
-    sigma_von_mises = von_mises_stress(T, xPhys, edofMat, nelz)
+    #sigma_von_mises = von_mises_stress(T, xPhys, edofMat, nelz)
     max_element  = np.argmax(sigma_von_mises)
     xPhys = weaken_structure(max_element, xPhys)
 
     return xPhys 
 
+def make_xPhys_gradient(xPhys, nelx, nely, nelz):
+    pass
+
+def ruler_sequence(levels: int) -> list[int]:
+    if levels == 0:
+        return [0]
+    sub = ruler_sequence(levels - 1)
+    return sub + [levels] + sub
+
+def insert_hierarchical_gaps(xPhys, nelx, nely, nelz, steps, delta_c):
+    if nelz==None:
+        n=nelx*nely 
+        heights = np.array(ruler_sequence_iter(steps))
+        middle_x = get_x_coordinate(n/2, nelx, nely, nelz)
+    else:
+        pass
+
 if __name__ == "__main__":
     #
-    nelx = 20
-    nely = 20
+    nelx = 128
+    nely = 128
     nelz = None
-    steps = 20
+    steps = 101
     #
     if nelz is None:
         ndim = 2
@@ -215,12 +247,15 @@ if __name__ == "__main__":
     # 
     n = np.array([nelx,nely,nelz][:ndim])
     xPhys = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
-    xPhys[200:210] = 0 
+    #xPhys = make_gradient(xPhys, nelx, nely, nelz)
+    xPhys[5000:]-= 0.2
+    xPhys[4500:4510] = 0 
+
     # get element stiffness matrix and element o
-    T, xPhys, edofMat = fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz,xPhys=xPhys ,file=f"visualisation/stationary_heatconduction_0")
-    xPhys = burn_max_element(T, xPhys, edofMat, nelz)
+    T, xPhys, edofMat, sigma_von_mises = fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz,xPhys=xPhys ,file=f"visualisation/stationary_heatconduction_0")
+    xPhys = burn_max_element(sigma_von_mises, xPhys)
     for step in range(1,steps):
-        T, xPhys, edofMat =  fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys, file=f"visualisation/stationary_heatconduction_{step}")
-        xPhys = burn_max_element(T, xPhys, edofMat, nelz)
+        T, xPhys, edofMat, sigma_von_mises =  fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys, file=f"visualisation/stationary_heatconduction_{step}")
+        xPhys = burn_max_element(sigma_von_mises, xPhys)
         
 
