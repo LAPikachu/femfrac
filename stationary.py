@@ -201,12 +201,12 @@ def get_y_coordinate(i, nelx, nely, nelz):
         pass
 
 
-def burn_max_element(sigma_von_mises, xPhys):
+def burn_max_element(sigma_von_mises, xPhys, thresholds):
     # interpolate over element
     #sigma_von_mises = von_mises_stress(T, xPhys, edofMat, nelz)
-    max_element  = np.argmax(sigma_von_mises)
+    ratios = sigma_von_mises/thresholds
+    max_element  = np.argmax(ratios)
     xPhys = weaken_structure(max_element, xPhys)
-
     return xPhys 
 
 def make_xPhys_gradient(xPhys, nelx, nely, nelz):
@@ -221,14 +221,17 @@ def ruler_sequence(levels: int) -> list[int]:
 def insert_hierarchical_gaps(xPhys, nelx, nely, nelz, steps, delta_c):
     if nelz==None:
         n=nelx*nely 
-        heights = np.array(ruler_sequence(steps))
+        heights = np.array(ruler_sequence(steps))*10.75
+        heights = np.asarray(heights, dtype="int")
+        max_height = max(heights)
         middle_x = get_x_coordinate(n/2, nelx, nely, nelz)
         for i, c in enumerate(xPhys):
             x_coord = get_x_coordinate(i, nelx, nely, nelz)
             y_coord = get_y_coordinate(i, nelx, nely, nelz)
             delta_middle = middle_x - x_coord
-            if delta_middle > heights[y_coord-1] and heights[y_coord-1] != 0 and x_coord > delta_middle - 10:
-                xPhys[i] = 0.1
+
+            if y_coord%2==0 and delta_middle > heights[y_coord//2]:
+                xPhys[i] = delta_c 
         return xPhys
     else:
         pass
@@ -253,16 +256,17 @@ if __name__ == "__main__":
         nelz = int(sys.argv[3])
     # 
     n = np.array([nelx,nely,nelz][:ndim])
-    xPhys = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
+    thresholds = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
+    xPhys = np.ones((np.prod(n).astype(int),1))
     #xPhys = make_gradient(xPhys, nelx, nely, nelz)
-    xPhys = insert_hierarchical_gaps(xPhys, nelx, nely, nelz, 6, 0.2)
-    precrack_i = int((128*128)/2)+128*3
+    xPhys = insert_hierarchical_gaps(xPhys, nelx, nely, nelz, 6, 0)
+    precrack_i = int((128*128)/2)
     precrack_e = precrack_i + 10
     xPhys[precrack_i:precrack_i+10] = 0
     # get element stiffness matrix and element o
     T, xPhys, edofMat, sigma_von_mises = fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz,xPhys=xPhys ,file=f"visualisation/stationary_heatconduction_0")
-    xPhys = burn_max_element(sigma_von_mises, xPhys)
+    xPhys = burn_max_element(sigma_von_mises, xPhys, thresholds )
     for step in range(1,steps):
         T, xPhys, edofMat, sigma_von_mises =  fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys, file=f"visualisation/stationary_heatconduction_{step}")
-        xPhys = burn_max_element(sigma_von_mises, xPhys)
+        xPhys = burn_max_element(sigma_von_mises, xPhys, thresholds)
         
