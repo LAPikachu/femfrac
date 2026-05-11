@@ -35,6 +35,7 @@ def fem_stationary_heatconduction(nelx,
                                   assembly_mode="lower", 
                                   l=1.,
                                   file="stationary_heatconduction",
+                                  thresholds=None,
                                   export=True):
     """
     Run a single finite element simulation on a regular grid performing a 
@@ -260,13 +261,13 @@ if __name__ == "__main__":
     xPhys = np.ones((np.prod(n).astype(int),1))
     #xPhys = make_gradient(xPhys, nelx, nely, nelz)
     xPhys = insert_hierarchical_gaps(xPhys, nelx, nely, nelz, 6, 0)
-    precrack_i = int((128*128)/2)
+    precrack_i = int((128*128)/2) + 128*3
     precrack_e = precrack_i + 10
     xPhys[precrack_i:precrack_i+10] = 0
     # get element stiffness matrix and element o
-    T, xPhys, edofMat, sigma_von_mises = fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz,xPhys=xPhys ,file=f"visualisation/stationary_heatconduction_0")
+    T, xPhys, edofMat, sigma_von_mises = fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz,xPhys=xPhys ,file=f"visualisation/stationary_heatconduction_0", thresholds=thresholds)
     xPhys = burn_max_element(sigma_von_mises, xPhys, thresholds )
     for step in range(1,steps):
-        T, xPhys, edofMat, sigma_von_mises =  fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys, file=f"visualisation/stationary_heatconduction_{step}")
+        T, xPhys, edofMat, sigma_von_mises =  fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys, file=f"visualisation/stationary_heatconduction_{step}", thresholds=thresholds)
         xPhys = burn_max_element(sigma_von_mises, xPhys, thresholds)
         
