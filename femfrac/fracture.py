@@ -14,7 +14,8 @@ def von_mises_stress(u, xPhys, edofMat, nelz : None):
     delta_u  = (u[edofMat,0][...,None]*B_e).sum(axis=1)
     C = xPhys.reshape(-1,1)
     sigma = C * delta_u 
-    sigma_von_mises = np.sum(np.sqrt(sigma ** 2), axis=1, keepdims=True)
+    #sigma_von_mises_old = np.sum(np.sqrt(sigma ** 2), axis=1, keepdims=True)
+    sigma_von_mises = np.abs(sigma[:,0] -sigma[:,1]).reshape(-1,1) 
     return sigma_von_mises 
 
 def weaken_structure(index, xPhys):
