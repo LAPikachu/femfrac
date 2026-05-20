@@ -231,7 +231,7 @@ def insert_hierarchical_gaps(xPhys, nelx, nely, nelz, steps, delta_c):
             y_coord = get_y_coordinate(i, nelx, nely, nelz)
             delta_middle = middle_x - x_coord
 
-            if y_coord%2==0 and delta_middle > heights[y_coord//2]:
+            if y_coord%2==0 and x_coord < heights[y_coord//2]:
                 xPhys[i] = delta_c 
         return xPhys
     else:
