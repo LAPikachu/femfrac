@@ -219,23 +219,47 @@ def ruler_sequence(levels: int) -> list[int]:
     sub = ruler_sequence(levels - 1)
     return sub + [levels] + sub
 
-def insert_hierarchical_gaps(xPhys, nelx, nely, nelz, steps, delta_c):
+def insert_hierarchical_gaps(xPhys, nelx, nely, nelz, steps, delta_c, gap_width):
     if nelz==None:
         n=nelx*nely 
-        heights = np.array(ruler_sequence(steps))*10.75
+        heights = np.array(ruler_sequence(steps))
+        height_factor = (nely//2)/max(heights)
+        heights = heights*height_factor
         heights = np.asarray(heights, dtype="int")
-        max_height = max(heights)
+        heights = np.repeat(heights, gap_width)
         middle_x = get_x_coordinate(n/2, nelx, nely, nelz)
         for i, c in enumerate(xPhys):
             x_coord = get_x_coordinate(i, nelx, nely, nelz)
             y_coord = get_y_coordinate(i, nelx, nely, nelz)
             delta_middle = middle_x - x_coord
 
-            if y_coord%2==0 and x_coord < heights[y_coord//2]:
+            if x_coord < heights[y_coord]:
                 xPhys[i] = delta_c 
-        return xPhys
+        return xPhys, heights
     else:
-        pass
+        raise NotImplementedError("Only 2D implemented")
+
+def insert_random_voids(xPhys, n, nelx, nely, nelz):
+    index_array = np.arange(0, nelx*nely)
+    index_array = index_array[index_array > nelx//2*nely] #only indices in substrate
+    index_array = index_array[index_array % 2 == 0] # only even indices
+    index_array = index_array[index_array % 2*nely < nely] # only every second height
+    index_array = index_array[index_array < (nelx-1)*nely] # not in upper x-bound
+    index_array = index_array[index_array % nely != nely-1] # not in in upper y-bound
+    index_array = np.random.choice(index_array, size=n//4)
+    for i in index_array:
+        xPhys[i] = 0
+        xPhys[i+1] = 0
+        xPhys[i+nely] = 0
+        xPhys[i+nely+1] = 0
+    return xPhys
+
+def make_precrack(xPhys:np.arry[float], nelx, nely, nelz, xpos: int, length: int = 10, width: int = 2):
+    for i in range(0,width):
+        precrack_i = int(nely*xpos + nely*i)
+        precrack_e = int(precrack_i + length)
+        xPhys[precrack_i:precrack_e] = 0
+    return xPhys 
 
 if __name__ == "__main__":
     #
@@ -260,10 +284,9 @@ if __name__ == "__main__":
     thresholds = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
     xPhys = np.ones((np.prod(n).astype(int),1))
     #xPhys = make_gradient(xPhys, nelx, nely, nelz)
-    xPhys = insert_hierarchical_gaps(xPhys, nelx, nely, nelz, 6, 0)
-    precrack_i = int((128*128)/2) 
-    precrack_e = precrack_i + 10
-    xPhys[precrack_i:precrack_i+10] = 0
+    xPhys, heights = insert_hierarchical_gaps(xPhys, nelx, nely, nelz, 5, 0, 4)
+    xPhys = insert_random_voids(xPhys, np.sum(heights),nelx, nely, nelz)
+    xPhys = make_precrack(xPhys, nelx, nely, nelz, xpos=nelx/2, length=20, width=2)
     # get element stiffness matrix and element o
     T, xPhys, edofMat, sigma_von_mises = fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz,xPhys=xPhys ,file=f"visualisation/hierarchical/stationary_heatconduction_0", thresholds=thresholds)
     xPhys = burn_max_element(sigma_von_mises, xPhys, thresholds )
