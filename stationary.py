@@ -5,11 +5,18 @@ import numpy as np
 from topoptlab.fem import create_matrixinds
 from topoptlab.elements.bilinear_quadrilateral import create_edofMat as create_edofMat2d
 from topoptlab.elements.trilinear_hexahedron import create_edofMat as create_edofMat3d
+'''
+# heatplate example 
 # default application case that provides boundary conditions, etc.
 from topoptlab.example_bc.heat_conduction import rectangle_2d, heatplate_2d, heatplate_3d
 # different elements/physics
+'''
 from topoptlab.elements.poisson_2d import lk_poisson_2d
 from topoptlab.elements.poisson_3d import lk_poisson_3d
+
+from topoptlab.example_bc.lin_elast import tensiletest_2d, tensiletest_3d
+from topoptlab.elements.linear_elasticity_2d import lk_linear_elast_2d
+from topoptlab.elements.linear_elasticity_3d import lk_linear_elast_3d
 # generic functions for solving phys. problem
 from topoptlab.fem import assemble_matrix,apply_bc
 from topoptlab.solve_linsystem import solve_lin
@@ -19,24 +26,25 @@ from topoptlab.output_designs import export_vtk
 from topoptlab.material_interpolation import simp
 from topoptlab.fem import interpolate
 from topoptlab.elements.bilinear_quadrilateral  import shape_functions_dxi, invjacobian, invjacobian_rectangle
+
 from femfrac.fracture import von_mises_stress, weaken_structure
 # debugging
 import os
 # MAIN DRIVER
-def fem_stationary_heatconduction(nelx, 
-                                  nely, 
-                                  nelz=None,
-                                  xPhys=None, 
-                                  penal=3, 
-                                  kmax=1.0, 
-                                  kmin=1e-9, 
-                                  lin_solver="cvxopt-cholmod", 
-                                  preconditioner=None,
-                                  assembly_mode="lower", 
-                                  l=1.,
-                                  file="stationary_heatconduction",
-                                  thresholds=None,
-                                  export=True):
+def run_tensile_test(nelx, 
+                     nely, 
+                     nelz=None,
+                     xPhys=None, 
+                     penal=3, 
+                     kmax=1.0, 
+                     kmin=1e-9, 
+                     lin_solver="cvxopt-cholmod", 
+                     preconditioner=None,
+                     assembly_mode="lower", 
+                     l=1.,
+                     file="stationary_heatconduction",
+                     thresholds=None,
+                     export=True):
     """
     Run a single finite element simulation on a regular grid performing a 
     tensile test pulling along x-direction.
@@ -81,12 +89,12 @@ def fem_stationary_heatconduction(nelx,
     #
     if nelz is None:
         ndim = 2
-        lk = lk_poisson_2d
+        lk = lk_linear_elast_2d
         create_edofMat = create_edofMat2d
-        bc = rectangle_2d
+        bc = tensiletest_2d
     else:
         ndim = 3
-        lk = lk_poisson_3d
+        lk = lk_poisson_2d
         create_edofMat = create_edofMat3d
         bc = heatplate_3d
     # 
@@ -121,7 +129,7 @@ def fem_stationary_heatconduction(nelx,
     else:
         raise ValueError("Unknown assembly_mode: ", assembly_mode)
     # BC's and support
-    T,f,fixed,free,_ = bc(nelx=nelx,
+    u,f,fixed,free,_ = bc(nelx=nelx,
                           nely=nely,
                           nelz=nelz,
                           ndof=ndof)
@@ -151,7 +159,7 @@ def fem_stationary_heatconduction(nelx,
                   solver=lin_solver,
                   free=free,fixed=fixed)
     # solve linear system. fact is a factorization and precond a preconditioner
-    T[free, :], fact, precond, = solve_lin(K=KE, 
+    u[free, :], fact, precond, = solve_lin(K=KE, 
                                            rhs=rhs[free], 
                                            solver=lin_solver,
                                            preconditioner=preconditioner)
@@ -175,7 +183,7 @@ def fem_stationary_heatconduction(nelx,
     print((T[edofMat,0][...,None]*shape_functions_dxi(0,0)).sum(axis=1).shape)
     #print(([[1,1,1,1,1,1]][...,None]*shape_functions_dxi(0,0)).sum(axis=1))
     '''
-    sigma_von_mises = von_mises_stress(T, xPhys, edofMat, nelz)
+    sigma_von_mises = von_mises_stress(u, xPhys, edofMat, nelz)
     if export:
         export_vtk(filename=file,
                    nelx=nelx,
@@ -183,11 +191,11 @@ def fem_stationary_heatconduction(nelx,
                    nelz=nelz,
                    xPhys=xPhys,
                    elem_size=l,
-                   u=T,
+                   u=u,
                    f=f, 
                    stress_vm=sigma_von_mises)
     
-    return T, xPhys, edofMat, sigma_von_mises
+    return u, xPhys, edofMat, sigma_von_mises
 
 def get_x_coordinate(i, nelx, nely, nelz):
     if nelz==None:
@@ -200,7 +208,6 @@ def get_y_coordinate(i, nelx, nely, nelz):
         return i%nelx
     else:
         pass
-
 
 def burn_max_element(sigma_von_mises, xPhys, thresholds):
     # interpolate over element
@@ -263,10 +270,10 @@ def make_precrack(xPhys:np.arry[float], nelx, nely, nelz, xpos: int, length: int
 
 if __name__ == "__main__":
     #
-    nelx = 128
-    nely = 128
+    nelx = 4
+    nely = 4
     nelz = None
-    steps = 100
+    steps = 1
     #
     if nelz is None:
         ndim = 2
@@ -286,11 +293,11 @@ if __name__ == "__main__":
     #xPhys = make_gradient(xPhys, nelx, nely, nelz)
     xPhys, heights = insert_hierarchical_gaps(xPhys, nelx, nely, nelz, 5, 0, 4)
     xPhys = insert_random_voids(xPhys, np.sum(heights),nelx, nely, nelz)
-    xPhys = make_precrack(xPhys, nelx, nely, nelz, xpos=nelx/2, length=20, width=2)
+    #xPhys = make_precrack(xPhys, nelx, nely, nelz, xpos=nelx/2, length=20, width=1)
     # get element stiffness matrix and element o
-    T, xPhys, edofMat, sigma_von_mises = fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz,xPhys=xPhys ,file=f"visualisation/hierarchical/stationary_heatconduction_0", thresholds=thresholds)
+    u, xPhys, edofMat, sigma_von_mises = run_tensile_test(nelx=nelx, nely=nely, nelz=nelz,xPhys=xPhys ,file=f"visualisation/tensile/hierarchical/tensile_test_0", thresholds=thresholds)
     xPhys = burn_max_element(sigma_von_mises, xPhys, thresholds )
     for step in range(1,steps):
-        T, xPhys, edofMat, sigma_von_mises =  fem_stationary_heatconduction(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys, file=f"visualisation/hierarchical/stationary_heatconduction_{step}", thresholds=thresholds)
+        u, xPhys, edofMat, sigma_von_mises =  run_tensile_test(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys, file=f"visualisation/tensile/hierarchical/tensile_test_{step}", thresholds=thresholds)
         xPhys = burn_max_element(sigma_von_mises, xPhys, thresholds)
         
