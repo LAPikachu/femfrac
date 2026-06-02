@@ -17,6 +17,8 @@ from topoptlab.solve_linsystem import solve_lin
 # output final design to a Paraview readable format
 from topoptlab.output_designs import export_vtk
 
+from femfrac.fracture import weaken_structure, von_mises_stress
+
 # MAIN DRIVER
 def fem_tensiletest(nelx, nely, nelz=None,
                     xPhys=None, penal=3, 
@@ -147,6 +149,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
         print("eps_yy measured ",np.abs(u[1::3]).max()/ (nely*l[1]) )
         print("eps_zz measured ",np.abs(u[2::3]).max()/ (nelz*l[2]) )
     #
+    sigma_vm = von_mises_stress(u, xPhys, edofMat, nelz) 
     print(os.getcwd())
     if export:
         export_vtk(filename=file,
@@ -156,7 +159,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
                    elem_size=l,
                    xPhys=xPhys,
                    u=u,f=f)
-    return
+    return u, xPhys, edofMat, sigma_vm 
 
 if __name__ == "__main__":
     #
@@ -172,4 +175,5 @@ if __name__ == "__main__":
     if len(sys.argv)>3: 
         nelz = int(sys.argv[3])
     #
-    fem_tensiletest(nelx=nelx, nely=nely, nelz=None)
+    u, xPhys, edofMat, sigma_vm = fem_tensiletest(nelx=nelx, nely=nely, nelz=None)
+
