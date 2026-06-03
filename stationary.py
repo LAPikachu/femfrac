@@ -5,12 +5,10 @@ import numpy as np
 from topoptlab.fem import create_matrixinds
 from topoptlab.elements.bilinear_quadrilateral import create_edofMat as create_edofMat2d
 from topoptlab.elements.trilinear_hexahedron import create_edofMat as create_edofMat3d
-'''
 # heatplate example 
 # default application case that provides boundary conditions, etc.
 from topoptlab.example_bc.heat_conduction import rectangle_2d, heatplate_2d, heatplate_3d
 # different elements/physics
-'''
 from topoptlab.elements.poisson_2d import lk_poisson_2d
 from topoptlab.elements.poisson_3d import lk_poisson_3d
 
@@ -27,7 +25,7 @@ from topoptlab.material_interpolation import simp
 from topoptlab.fem import interpolate
 from topoptlab.elements.bilinear_quadrilateral  import shape_functions_dxi, invjacobian, invjacobian_rectangle
 
-from femfrac.fracture import von_mises_stress, weaken_structure
+from femfrac.fracture import get_vm_stress, weaken_structure
 # debugging
 import os
 # MAIN DRIVER
@@ -89,9 +87,9 @@ def run_tensile_test(nelx,
     #
     if nelz is None:
         ndim = 2
-        lk = lk_linear_elast_2d
+        lk = lk_poisson_2d
         create_edofMat = create_edofMat2d
-        bc = tensiletest_2d
+        bc = heatplate_2d
     else:
         ndim = 3
         lk = lk_poisson_2d
@@ -183,7 +181,7 @@ def run_tensile_test(nelx,
     print((T[edofMat,0][...,None]*shape_functions_dxi(0,0)).sum(axis=1).shape)
     #print(([[1,1,1,1,1,1]][...,None]*shape_functions_dxi(0,0)).sum(axis=1))
     '''
-    sigma_von_mises = von_mises_stress(u, xPhys, edofMat, nelz)
+    sigma_von_mises = get_vm_stress(u, xPhys, edofMat, nelz)
     if export:
         export_vtk(filename=file,
                    nelx=nelx,
