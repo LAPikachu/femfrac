@@ -1,6 +1,59 @@
 import numpy as np
 from topoptlab.elements.stress_measures import von_mises_stress
 
+def get_x_coordinate(i, nelx, nely, nelz):
+    if nelz==None:
+        return i//nelx
+    else:
+        pass
+
+def get_y_coordinate(i, nelx, nely, nelz):
+    if nelz==None:
+        return i%nelx
+    else:
+        pass
+
+def ruler_sequence(levels: int) -> list[int]:
+    if levels == 0:
+        return [0]
+    sub = ruler_sequence(levels - 1)
+    return sub + [levels] + sub
+
+def insert_hierarchical_gaps(xPhys, nelx, nely, nelz, steps, delta_c, gap_width):
+    if nelz==None:
+        n=nelx*nely 
+        heights = np.array(ruler_sequence(steps))
+        height_factor = (nely//2)/max(heights)
+        heights = heights*height_factor
+        heights = np.asarray(heights, dtype="int")
+        heights = np.repeat(heights, gap_width)
+        middle_x = get_x_coordinate(n/2, nelx, nely, nelz)
+        for i, c in enumerate(xPhys):
+            x_coord = get_x_coordinate(i, nelx, nely, nelz)
+            y_coord = get_y_coordinate(i, nelx, nely, nelz)
+            delta_middle = middle_x - x_coord
+
+            if x_coord < heights[y_coord]:
+                xPhys[i] = delta_c 
+        return xPhys, heights
+    else:
+        raise NotImplementedError("Only 2D implemented")
+
+def insert_random_voids(xPhys, n, nelx, nely, nelz):
+    index_array = np.arange(0, nelx*nely)
+    index_array = index_array[index_array > nelx//2*nely] #only indices in substrate
+    index_array = index_array[index_array % 2 == 0] # only even indices
+    index_array = index_array[index_array % 2*nely < nely] # only every second height
+    index_array = index_array[index_array < (nelx-1)*nely] # not in upper x-bound
+    index_array = index_array[index_array % nely != nely-1] # not in in upper y-bound
+    index_array = np.random.choice(index_array, size=n//4)
+    for i in index_array:
+        xPhys[i] = 0
+        xPhys[i+1] = 0
+        xPhys[i+nely] = 0
+        xPhys[i+nely+1] = 0
+    return xPhys
+
 def burn_max_element(sigma_von_mises, xPhys, thresholds):
     # interpolate over element
     #sigma_von_mises = von_mises_stress(T, xPhys, edofMat, nelz)

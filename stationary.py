@@ -25,7 +25,7 @@ from topoptlab.material_interpolation import simp
 from topoptlab.fem import interpolate
 from topoptlab.elements.bilinear_quadrilateral  import shape_functions_dxi, invjacobian, invjacobian_rectangle
 
-from femfrac.fracture import burn_max_element, get_vm_stress, weaken_structure
+from femfrac.fracture import burn_max_element, get_vm_stress, weaken_structure, insert_random_voids, insert_hierarchical_gaps
 # debugging
 import os
 # MAIN DRIVER
@@ -210,46 +210,8 @@ def get_y_coordinate(i, nelx, nely, nelz):
 def make_xPhys_gradient(xPhys, nelx, nely, nelz):
     pass
 
-def ruler_sequence(levels: int) -> list[int]:
-    if levels == 0:
-        return [0]
-    sub = ruler_sequence(levels - 1)
-    return sub + [levels] + sub
 
-def insert_hierarchical_gaps(xPhys, nelx, nely, nelz, steps, delta_c, gap_width):
-    if nelz==None:
-        n=nelx*nely 
-        heights = np.array(ruler_sequence(steps))
-        height_factor = (nely//2)/max(heights)
-        heights = heights*height_factor
-        heights = np.asarray(heights, dtype="int")
-        heights = np.repeat(heights, gap_width)
-        middle_x = get_x_coordinate(n/2, nelx, nely, nelz)
-        for i, c in enumerate(xPhys):
-            x_coord = get_x_coordinate(i, nelx, nely, nelz)
-            y_coord = get_y_coordinate(i, nelx, nely, nelz)
-            delta_middle = middle_x - x_coord
 
-            if x_coord < heights[y_coord]:
-                xPhys[i] = delta_c 
-        return xPhys, heights
-    else:
-        raise NotImplementedError("Only 2D implemented")
-
-def insert_random_voids(xPhys, n, nelx, nely, nelz):
-    index_array = np.arange(0, nelx*nely)
-    index_array = index_array[index_array > nelx//2*nely] #only indices in substrate
-    index_array = index_array[index_array % 2 == 0] # only even indices
-    index_array = index_array[index_array % 2*nely < nely] # only every second height
-    index_array = index_array[index_array < (nelx-1)*nely] # not in upper x-bound
-    index_array = index_array[index_array % nely != nely-1] # not in in upper y-bound
-    index_array = np.random.choice(index_array, size=n//4)
-    for i in index_array:
-        xPhys[i] = 0
-        xPhys[i+1] = 0
-        xPhys[i+nely] = 0
-        xPhys[i+nely+1] = 0
-    return xPhys
 
 def make_precrack(xPhys:np.arry[float], nelx, nely, nelz, xpos: int, length: int = 10, width: int = 2):
     for i in range(0,width):
@@ -285,9 +247,9 @@ if __name__ == "__main__":
     xPhys = insert_random_voids(xPhys, np.sum(heights),nelx, nely, nelz)
     #xPhys = make_precrack(xPhys, nelx, nely, nelz, xpos=nelx/2, length=20, width=1)
     # get element stiffness matrix and element o
-    u, xPhys, edofMat, sigma_von_mises = run_tensile_test(nelx=nelx, nely=nely, nelz=nelz,xPhys=xPhys ,file=f"visualisation/tensile/hierarchical/tensile_test_0", thresholds=thresholds)
+    u, xPhys, edofMat, sigma_von_mises = run_tensile_test(nelx=nelx, nely=nely, nelz=nelz,xPhys=xPhys ,file=f"visualisation/hierarchical/tensile_test_0", thresholds=thresholds)
     xPhys = burn_max_element(sigma_von_mises, xPhys, thresholds )
     for step in range(1,steps):
-        u, xPhys, edofMat, sigma_von_mises =  run_tensile_test(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys, file=f"visualisation/tensile/hierarchical/tensile_test_{step}", thresholds=thresholds)
+        u, xPhys, edofMat, sigma_von_mises =  run_tensile_test(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys, file=f"visualisation/hierarchical/tensile_test_{step}", thresholds=thresholds)
         xPhys = burn_max_element(sigma_von_mises, xPhys, thresholds)
         

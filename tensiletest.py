@@ -17,8 +17,7 @@ from topoptlab.solve_linsystem import solve_lin
 # output final design to a Paraview readable format
 from topoptlab.output_designs import export_vtk
 
-from femfrac.fracture import burn_max_element, weaken_structure, get_vm_stress
-
+from femfrac.fracture import burn_max_element, get_vm_stress, weaken_structure, insert_random_voids, insert_hierarchical_gaps
 # MAIN DRIVER
 def fem_tensiletest(nelx, nely, nelz=None,
                     xPhys=None, penal=3, 
@@ -182,11 +181,14 @@ if __name__ == "__main__":
     else:
         ndim=3
     #
-    #xPhys, heights = insert_hierarchical_gaps(xPhys, nelx, nely, nelz, 5, 0, 4)
-    #xPhys = insert_random_voids(xPhys, np.sum(heights),nelx, nely, nelz)
     n = np.array([nelx,nely,nelz][:ndim])
     thresholds = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
-    u, xPhys, edofMat, sigma_vm = fem_tensiletest(nelx=nelx, nely=nely, nelz=None, file="visualisation/tensile/hierarchical/tensile_test_0", thresholds=thresholds)
+    xPhys = np.ones((np.prod(n).astype(int),1))
+    xPhys, heights = insert_hierarchical_gaps(xPhys, nelx, nely, nelz, 5, 0, 4)
+    xPhys = insert_random_voids(xPhys, np.sum(heights),nelx, nely, nelz)
+    xPhys = np.squeeze(xPhys, axis=1)
+    thresholds = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
+    u, xPhys, edofMat, sigma_vm = fem_tensiletest(nelx=nelx, nely=nely, nelz=None, xPhys=xPhys, file="visualisation/tensile/hierarchical/tensile_test_0", thresholds=thresholds)
     xPhys = burn_max_element(sigma_vm, xPhys,thresholds=thresholds)
     for step in range(1,steps):
         u, xPhys, edofMat, sigma_von_mises = fem_tensiletest(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys, file=f"visualisation/tensile/hierarchical/tensile_test_{step}", thresholds=thresholds)
