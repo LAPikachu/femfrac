@@ -25,7 +25,7 @@ from topoptlab.material_interpolation import simp
 from topoptlab.fem import interpolate
 from topoptlab.elements.bilinear_quadrilateral  import shape_functions_dxi, invjacobian, invjacobian_rectangle
 
-from femfrac.fracture import get_vm_stress, weaken_structure
+from femfrac.fracture import burn_max_element, get_vm_stress, weaken_structure
 # debugging
 import os
 # MAIN DRIVER
@@ -206,14 +206,6 @@ def get_y_coordinate(i, nelx, nely, nelz):
         return i%nelx
     else:
         pass
-
-def burn_max_element(sigma_von_mises, xPhys, thresholds):
-    # interpolate over element
-    #sigma_von_mises = von_mises_stress(T, xPhys, edofMat, nelz)
-    ratios = sigma_von_mises/thresholds
-    max_element  = np.argmax(ratios)
-    xPhys = weaken_structure(max_element, xPhys)
-    return xPhys 
 
 def make_xPhys_gradient(xPhys, nelx, nely, nelz):
     pass
