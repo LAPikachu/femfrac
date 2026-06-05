@@ -17,7 +17,7 @@ from topoptlab.solve_linsystem import solve_lin
 # output final design to a Paraview readable format
 from topoptlab.output_designs import export_vtk
 
-from femfrac.fracture import weaken_structure, get_vm_stress
+from femfrac.fracture import burn_max_element, weaken_structure, get_vm_stress
 
 # MAIN DRIVER
 def fem_tensiletest(nelx, nely, nelz=None,
@@ -26,7 +26,8 @@ def fem_tensiletest(nelx, nely, nelz=None,
                     lin_solver="cvxopt-cholmod", preconditioner=None,
                     assembly_mode="full", l=1.,
                     file="visualisation/tensile/tensiletest",
-                    export=True):
+                    export=True,
+                    thresholds=None):
     """
     Run a single finite element simulation on a regular grid performing a 
     tensile test pulling along x-direction.
@@ -158,14 +159,16 @@ def fem_tensiletest(nelx, nely, nelz=None,
                    nelz=nelz,
                    elem_size=l,
                    xPhys=xPhys,
-                   u=u,f=f)
+                   u=u,f=f,
+                   stress_vm=sigma_vm)
     return u, xPhys, edofMat, sigma_vm 
 
 if __name__ == "__main__":
     #
-    nelx = 4
-    nely = 4
+    nelx = 100
+    nely = 100
     nelz = None
+    steps=50
     #
     import sys
     if len(sys.argv)>1: 
@@ -174,6 +177,21 @@ if __name__ == "__main__":
         nely = int(sys.argv[2])
     if len(sys.argv)>3: 
         nelz = int(sys.argv[3])
+    if nelz is None:
+        ndim = 2
+    else:
+        ndim=3
     #
-    u, xPhys, edofMat, sigma_vm = fem_tensiletest(nelx=nelx, nely=nely, nelz=None)
+    #xPhys, heights = insert_hierarchical_gaps(xPhys, nelx, nely, nelz, 5, 0, 4)
+    #xPhys = insert_random_voids(xPhys, np.sum(heights),nelx, nely, nelz)
+    n = np.array([nelx,nely,nelz][:ndim])
+    thresholds = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
+    u, xPhys, edofMat, sigma_vm = fem_tensiletest(nelx=nelx, nely=nely, nelz=None, file="visualisation/tensile/hierarchical/tensile_test_0", thresholds=thresholds)
+    xPhys = burn_max_element(sigma_vm, xPhys,thresholds=thresholds)
+    for step in range(1,steps):
+        u, xPhys, edofMat, sigma_von_mises = fem_tensiletest(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys, file=f"visualisation/tensile/hierarchical/tensile_test_{step}", thresholds=thresholds)
+        xPhys = burn_max_element(sigma_von_mises, xPhys, thresholds)
+        
+
+    
 
