@@ -1,5 +1,6 @@
 import numpy as np
 from topoptlab.elements.stress_measures import von_mises_stress
+from topoptlab.elements.bilinear_quadrilateral import bmatrix_rectangle
 
 def get_x_coordinate(i, nelx, nely, nelz):
     if nelz==None:
@@ -19,7 +20,7 @@ def ruler_sequence(levels: int) -> list[int]:
     sub = ruler_sequence(levels - 1)
     return sub + [levels] + sub
 
-def insert_hierarchical_gaps(xPhys, nelx, nely, nelz, steps, delta_c, gap_width):
+def insert_hierarchical_gaps(xPhys, nelx, nely, nelz, steps, delta_c, gap_width): #turn around gaps! 
     if nelz==None:
         n=nelx*nely 
         heights = np.array(ruler_sequence(steps))
@@ -39,6 +40,11 @@ def insert_hierarchical_gaps(xPhys, nelx, nely, nelz, steps, delta_c, gap_width)
     else:
         raise NotImplementedError("Only 2D implemented")
 
+def insert_notch(length, xPhys):
+    middle = int(len(xPhys)//2)
+    xPhys[middle:int(middle+length)] = 0
+    return xPhys 
+
 def insert_random_voids(xPhys, n, nelx, nely, nelz):
     index_array = np.arange(0, nelx*nely)
     index_array = index_array[index_array > nelx//2*nely] #only indices in substrate
@@ -54,13 +60,41 @@ def insert_random_voids(xPhys, n, nelx, nely, nelz):
         xPhys[i+nely+1] = 0
     return xPhys
 
-def burn_max_element(sigma_von_mises, xPhys, thresholds):
+def get_D_planestress(E, nu):
+    return E/(1-nu**2) * np.array([[1., nu, 0.],
+                                    [nu, 1., 0.],
+                                    [0., 0., (1-nu)/2.]])
+
+def get_element_strain(u, edofMat, index, B_e):
+    """Average strain in one element from its nodal displacements."""
+    ue = u[edofMat[index], 0]          # (8,) nodal dof values, dof order = edofMat's
+    return B_e @ ue                     # (3,) -> [eps_xx, eps_yy, gamma_xy]
+
+def damage_element(index, f, u, edofMat, l, xPhys, penal, Emin, Emax, nu, t=1., relax=1.0):
+    """
+    Damage one element by adding an eigenstrain-equivalent nodal force to f.
+    K is untouched. relax=1.0 fully relaxes the element's current elastic
+    strain (i.e. eps0 = -eps_current); relax<1.0 partially relaxes it.
+    """
+    B_e = bmatrix_rectangle(xi=np.array([0.]), eta=np.array([0.]),
+                             a=l, b=l)[0]      # (3,8)
+    E_local = Emin + xPhys[index]**penal *(Emax- Emin)
+    D = get_D_planestress(E_local, nu)
+    eps_current = get_element_strain(u, edofMat, index, B_e)
+    eps0 = -relax * eps_current                       # eigenstrain to apply
+    Ae = l * l
+    f_eig = t * Ae * (B_e.T @ D @ eps0)                # (8,)
+    f_new = f.copy()
+    f_new[edofMat[index], 0] += f_eig                  # additive scatter
+    return f_new
+
+def burn_max_element(f, u,sigma_von_mises, thresholds, edofMat, l, xPhys, penal, Emin, Emax, nu, t=1., relax=1.0):
     # interpolate over element
     #sigma_von_mises = von_mises_stress(T, xPhys, edofMat, nelz)
-    ratios = sigma_von_mises/thresholds
+    ratios = np.array(sigma_von_mises).reshape(-1)/np.array(thresholds)
     max_element  = np.argmax(ratios)
-    xPhys = weaken_structure(max_element, xPhys)
-    return xPhys 
+    f = damage_element(max_element, f, u, edofMat, l, xPhys, penal, Emin, Emax, nu, t=1., relax=1.0)
+    return f 
 
 def get_vm_stress(u, xPhys, edofMat, nelz : None):
     C = xPhys.reshape(-1,1)
@@ -116,5 +150,12 @@ def get_vm_stress(u, xPhys, edofMat, nelz : None):
 
 def weaken_structure(index, xPhys):
     xPhys_new = xPhys
-    xPhys_new[index] = 0
+    xPhys_new[index] = 10e-9
     return xPhys_new
+
+def increase_load(index, f,edofMat, load=1.):
+    indices = edofMat[index]
+    f[indices] = load
+    f_new = f
+    f_new[index] = load 
+    return f_new
