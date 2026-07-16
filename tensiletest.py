@@ -21,7 +21,7 @@ from femfrac.fracture import burn_max_element, get_vm_stress, weaken_structure, 
 # MAIN DRIVER
 def fem_tensiletest(nelx, nely, nelz=None,
                     xPhys=None, penal=3, 
-                    Emax=1.0, Emin=1e-9, nu=0.3,
+                    Emax=1.0, Emin=1e-9, nu=0.3, f_input=None,
                     lin_solver="cvxopt-cholmod", preconditioner=None,
                     assembly_mode="full", l=1.,
                     file="visualisation/tensile/tensiletest",
@@ -122,6 +122,8 @@ def fem_tensiletest(nelx, nely, nelz=None,
                          solver=lin_solver,
                          springs=None)
     # assemble completely
+    if f_input is not None:
+        f = f_input
     rhs = f
     # apply boundary conditions to matrix
     KE = apply_bc(K=KE,
@@ -160,14 +162,21 @@ def fem_tensiletest(nelx, nely, nelz=None,
                    xPhys=xPhys,
                    u=u,f=f,
                    stress_vm=sigma_vm)
-    return u, xPhys, edofMat, sigma_vm 
+    return f, u, xPhys, edofMat, sigma_vm 
 
 if __name__ == "__main__":
     #
-    nelx = 100
-    nely = 100
+    nelx = 10
+    nely = 10
     nelz = None
-    steps=50
+    steps=10
+    Emax=1.0
+    Emin=1e-9 
+    ymin = Emin + 0.1
+    ymax = ymin *5
+    penal=3
+    l = 1.
+    nu=0.3
     #
     import sys
     if len(sys.argv)>1: 
@@ -184,15 +193,22 @@ if __name__ == "__main__":
     n = np.array([nelx,nely,nelz][:ndim])
     thresholds = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
     xPhys = np.ones((np.prod(n).astype(int),1))
-    xPhys, heights = insert_hierarchical_gaps(xPhys, nelx, nely, nelz, 5, 0, 4)
-    xPhys = insert_random_voids(xPhys, np.sum(heights),nelx, nely, nelz)
+    #xPhys, heights = insert_hierarchical_gaps(xPhys, nelx, nely, nelz, 5, 0, 4)
+    #xPhys = insert_random_voids(xPhys, np.sum(heights),nelx, nely, nelz)
     xPhys = np.squeeze(xPhys, axis=1)
-    thresholds = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
-    u, xPhys, edofMat, sigma_vm = fem_tensiletest(nelx=nelx, nely=nely, nelz=None, xPhys=xPhys, file="visualisation/tensile/hierarchical/tensile_test_0", thresholds=thresholds)
-    xPhys = burn_max_element(sigma_vm, xPhys,thresholds=thresholds)
+    xPhys[len(xPhys)//2:len(xPhys)//2+1] = 0
+    #thresholds = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
+    y_scaled = (ymin+(xPhys)** penal*(ymax-ymin))
+
+    f, u, xPhys, edofMat, sigma_vm = fem_tensiletest(nelx=nelx, nely=nely, nelz=None, xPhys=xPhys,
+                                                  Emin=Emin, Emax=Emax, nu=nu, l=l, penal=penal,
+                                                  file="visualisation/tensile/hierarchical/tensile_test_0")
+    f = burn_max_element(f, u,sigma_vm, y_scaled, edofMat, l, xPhys, penal, Emin, Emax, nu)
     for step in range(1,steps):
-        u, xPhys, edofMat, sigma_von_mises = fem_tensiletest(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys, file=f"visualisation/tensile/hierarchical/tensile_test_{step}", thresholds=thresholds)
-        xPhys = burn_max_element(sigma_von_mises, xPhys, thresholds)
+        f, u, xPhys, edofMat, sigma_von_mises = fem_tensiletest(nelx=nelx, nely=nely, nelz=nelz, xPhys=xPhys,
+                                                            Emin=Emin, Emax=Emax, nu=nu, l=l, f_input=f,
+                                                            file=f"visualisation/tensile/hierarchical/tensile_test_{step}")
+        f = burn_max_element(f, u,sigma_vm, y_scaled, edofMat, l, xPhys, penal, Emin, Emax, nu)
         
 
     

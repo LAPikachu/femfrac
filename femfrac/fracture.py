@@ -93,8 +93,9 @@ def burn_max_element(f, u,sigma_von_mises, thresholds, edofMat, l, xPhys, penal,
     #sigma_von_mises = von_mises_stress(T, xPhys, edofMat, nelz)
     ratios = np.array(sigma_von_mises).reshape(-1)/np.array(thresholds)
     max_element  = np.argmax(ratios)
-    f = damage_element(max_element, f, u, edofMat, l, xPhys, penal, Emin, Emax, nu, t=1., relax=1.0)
-    return f 
+    f_new = damage_element(max_element, f, u, edofMat, l, xPhys, penal, Emin, Emax, nu, t=1., relax=1.0)
+
+    return f_new
 
 def get_vm_stress(u, xPhys, edofMat, nelz : None):
     C = xPhys.reshape(-1,1)
