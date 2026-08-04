@@ -70,7 +70,7 @@ def get_element_strain(u, edofMat, index, B_e):
     ue = u[edofMat[index], 0]          # (8,) nodal dof values, dof order = edofMat's
     return B_e @ ue                     # (3,) -> [eps_xx, eps_yy, gamma_xy]
 
-def damage_element(index, f, u, edofMat, l, xPhys, penal, Emin, Emax, nu, t=1., relax=1.0):
+def damage_element(index, f, u, edofMat, l, damage, penal, Emin, Emax, nu, t=1., relax=1.0):
     """
     Damage one element by adding an eigenstrain-equivalent nodal force to f.
     K is untouched. relax=1.0 fully relaxes the element's current elastic
@@ -78,7 +78,7 @@ def damage_element(index, f, u, edofMat, l, xPhys, penal, Emin, Emax, nu, t=1., 
     """
     B_e = bmatrix_rectangle(xi=np.array([0.]), eta=np.array([0.]),
                              a=l, b=l)[0]      # (3,8)
-    E_local = Emin + xPhys[index]**penal *(Emax- Emin)
+    E_local = Emin + (1 - damage[index])**penal *(Emax- Emin)
     D = get_D_planestress(E_local, nu)
     eps_current = get_element_strain(u, edofMat, index, B_e)
     eps0 = -relax * eps_current                       # eigenstrain to apply
@@ -88,14 +88,14 @@ def damage_element(index, f, u, edofMat, l, xPhys, penal, Emin, Emax, nu, t=1., 
     f_new[edofMat[index], 0] += f_eig                  # additive scatter
     return f_new
 
-def burn_max_element(f, u,sigma_von_mises, thresholds, edofMat, l, xPhys, penal, Emin, Emax, nu, t=1., relax=1.0):
+def burn_max_element(f, u,sigma_von_mises, thresholds, edofMat, l, damage, penal, Emin, Emax, nu, t=1., relax=1.0):
     # interpolate over element
     #sigma_von_mises = von_mises_stress(T, xPhys, edofMat, nelz)
-    ratios = np.array(sigma_von_mises).reshape(-1)/np.array(thresholds)
-    max_element  = np.argmax(ratios)
-    f_new = damage_element(max_element, f, u, edofMat, l, xPhys, penal, Emin, Emax, nu, t=1., relax=1.0)
-
-    return f_new
+    ratios = np.array(sigma_von_mises).reshape(-1) - np.array(thresholds)
+    max_element_index  = np.argmax(ratios)
+    damage[max_element_index] += relax
+    f_new = damage_element(max_element_index, f, u, edofMat, l, damage, penal, Emin, Emax, nu, t=1., relax=1.0)
+    return f_new, damage
 
 def get_vm_stress(u, xPhys, edofMat, nelz : None):
     C = xPhys.reshape(-1,1)
