@@ -18,6 +18,7 @@ from topoptlab.solve_linsystem import solve_lin
 from topoptlab.output_designs import export_vtk
 
 from femfrac.fracture import burn_max_element, get_vm_stress, weaken_structure, insert_random_voids, insert_hierarchical_gaps, insert_notch
+from femfrac.disorder import get_yield, weibull_redistribute
 # MAIN DRIVER
 def fem_tensiletest(nelx, nely, nelz=None,
                     xPhys=None, damage=None, f_input=None, penal=3, 
@@ -94,7 +95,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
         f = f_input
     # interpolate material properties
     E_scaled = (Emin+(xPhys)** penal*(Emax-Emin))
-    yield_scaled = (ymin + (xPhys)** penal*(ymax-ymin))
+    yield_scaled = get_yield(damage, ymin, ymax) 
     # entries of stiffness matrix
     rhs = f
     # apply boundary conditions to matrix
@@ -228,7 +229,7 @@ if __name__ == "__main__":
                                                                     nelz=None, xPhys=xPhys, damage=damage,
                                                                     file="visualisation/tensile/hierarchical/tensile_test_0",
                                                                     thresholds=thresholds)
-    f, damage = burn_max_element(f, u, sigma_vm, yield_scaled, edofMat, l, damage, penal, Emin, Emax, nu)
+    f, damage = burn_max_element(f, u, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, Emin, Emax, nu)
    
     for step in range(1,steps):
         u, f, xPhys, edofMat, yield_scaled, sigma_vm  = fem_tensiletest(nelx=nelx, nely=nely,
@@ -238,4 +239,4 @@ if __name__ == "__main__":
                                                                        file=f"visualisation/tensile/hierarchical/tensile_test_{step}",
                                                                        thresholds=thresholds)
 
-        f, damage = burn_max_element(f, u, sigma_vm, yield_scaled, edofMat, l, damage, penal, Emin, Emax, nu)
+        f, damage = burn_max_element(f, u, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, Emin, Emax, nu)
