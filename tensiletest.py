@@ -17,7 +17,8 @@ from topoptlab.solve_linsystem import solve_lin
 # output final design to a Paraview readable format
 from topoptlab.output_designs import export_vtk
 
-from femfrac.fracture import burn_max_element, get_vm_stress, weaken_structure, insert_random_voids, insert_hierarchical_gaps, insert_notch
+from femfrac.fracture import (burn_max_element, get_vm_stress, weaken_structure, insert_random_voids,
+                             get_element_strain, insert_hierarchical_gaps, insert_notch)
 from femfrac.disorder import get_yield, weibull_redistribute
 # MAIN DRIVER
 def fem_tensiletest(nelx, nely, nelz=None,
@@ -126,6 +127,8 @@ def fem_tensiletest(nelx, nely, nelz=None,
         print("eps_yy measured ",np.abs(u[1::3]).max()/ (nely*l[1]) )
         print("eps_zz measured ",np.abs(u[2::3]).max()/ (nelz*l[2]) )
     #
+    eps = get_element_strain(u, edofMat, nelz) 
+    eps_pl = np.zeros(eps.shape, dtype=float)
     sigma_vm = get_vm_stress(u, xPhys, edofMat, nelz) 
     print(os.getcwd())
     if export:

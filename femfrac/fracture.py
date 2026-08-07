@@ -97,8 +97,7 @@ def burn_max_element(f, u,sigma_von_mises, thresholds, edofMat, l, damage, penal
     f_new = damage_element(max_element_index, f, u, edofMat, l, damage, penal, Emin, Emax, nu, t=1., relax=1.0)
     return f_new, damage
 
-def get_vm_stress(u, xPhys, edofMat, nelz : None):
-    C = xPhys.reshape(-1,1)
+def get_element_strain(u, edofMat, nelz):
     if nelz == None:  
         from topoptlab.elements.bilinear_quadrilateral  import shape_functions_dxi, invjacobian, invjacobian_rectangle
         delta_N_e = shape_functions_dxi(0,0)
@@ -114,39 +113,42 @@ def get_vm_stress(u, xPhys, edofMat, nelz : None):
         uy  = u[1::2]
         edofMatx = edofMat[:,::2]
         edofMaty = edofMat[:,1::2]
-        delta_ux  = (ux[(edofMatx/2).astype(int),0][...,None]*B_e).sum(axis=1)
-        delta_uy = (uy[((edofMaty-1)/2).astype(int),0][...,None]*B_e).sum(axis=1)
-        sxx = C * delta_ux[:,0][...,None] # [dux/dx, dux/dy]  
-        syy = C * delta_uy[:,1][...,None] # [duy/dx, duy/dy]  
-        sxy = C * ((delta_ux[:,1][...,None] + delta_uy[:,0][...,None])/2)
-        sigma_vm = von_mises_stress(np.squeeze([sxx, syy, sxy], axis=2).T, ndim=2)
-    elif edofMat.shape[1] == 12: #check if 3d-vector-field
-        raise NotImplementedError("Function not implemented for 3d/ 3d-vector-field.")
-        '''
-        ux  = u[::3]
-        uy  = u[1::3]
-        uy  = u[2::3]
-        edofMatx = edofMat[:,::3]
-        edofMaty = edofMat[:,1::3]
-        edofMatz = edofMat[:,2::3]
-        delta_ux  = (ux[(edofMatx/3).astype(int),0][...,None]*B_e).sum(axis=1)
-        delta_uy = (uy[((edofMaty-1)/3).astype(int),0][...,None]*B_e).sum(axis=1)
-        delta_uz = (uy[((edofMaty-2)/3).astype(int),0][...,None]*B_e).sum(axis=1)
-        du_dx = delta_ux[:,0]
-        sxx = C * delta_ux[:,0] # [dux/dx, dux/dy]  
-        syy = C * delta_uy[:,1] # [duy/dx, duy/dy]  
-        szz = C * delta_uz[:,1] # [duy/dx, duy/dy]  
-        sxy = C * ((delta_ux[:,1] + delta_uy[:,0])/2)
-        sxz = C * ((delta_ux[:,1] + delta_uz[:,0])/2)
-        syz = C * ((delta_uy[:,1] + delta_uz[:,0])/2)
-        sigma_vm = von_mises_stress(np.array([sxx, syy, sxy]), ndim=2)
-        '''
-    else:
-        delta_u  = (u[edofMat,0][...,None]*B_e)
-        delta_u  = (u[edofMat,0][...,None]*B_e).sum(axis=1)
-        sigma = C * delta_u 
-        #sigma_von_mises_old = np.sum(np.sqrt(sigma ** 2), axis=1, keepdims=True)
-        sigma_von_mises = np.abs(sigma[:,0] -sigma[:,1]).reshape(-1,1) 
+        eps_x  = (ux[(edofMatx/2).astype(int),0][...,None]*B_e).sum(axis=1)
+        eps_y = (uy[((edofMaty-1)/2).astype(int),0][...,None]*B_e).sum(axis=1)
+        return eps_x, eps_y 
+
+def get_vm_stress(u, xPhys, edofMat, nelz : None):
+    C = xPhys.reshape(-1,1)
+    delta_ux, delta_uy = get_element_strain(u, edofMat, nelz)
+    sxx = C * delta_ux[:,0][...,None] # [dux/dx, dux/dy]  
+    syy = C * delta_uy[:,1][...,None] # [duy/dx, duy/dy]  
+    sxy = C * ((delta_ux[:,1][...,None] + delta_uy[:,0][...,None])/2)
+    sigma_vm = von_mises_stress(np.squeeze([sxx, syy, sxy], axis=2).T, ndim=2)
+#    elif edofMat.shape[1] == 12: #check if 3d-vector-field
+#        raise NotImplementedError("Function not implemented for 3d/ 3d-vector-field.")
+#        ux  = u[::3]
+#        uy  = u[1::3]
+#        uy  = u[2::3]
+#        edofMatx = edofMat[:,::3]
+#        edofMaty = edofMat[:,1::3]
+#        edofMatz = edofMat[:,2::3]
+#        delta_ux  = (ux[(edofMatx/3).astype(int),0][...,None]*B_e).sum(axis=1)
+#        delta_uy = (uy[((edofMaty-1)/3).astype(int),0][...,None]*B_e).sum(axis=1)
+#        delta_uz = (uy[((edofMaty-2)/3).astype(int),0][...,None]*B_e).sum(axis=1)
+#        du_dx = delta_ux[:,0]
+#        sxx = C * delta_ux[:,0] # [dux/dx, dux/dy]  
+#        syy = C * delta_uy[:,1] # [duy/dx, duy/dy]  
+#        szz = C * delta_uz[:,1] # [duy/dx, duy/dy]  
+#        sxy = C * ((delta_ux[:,1] + delta_uy[:,0])/2)
+#        sxz = C * ((delta_ux[:,1] + delta_uz[:,0])/2)
+#        syz = C * ((delta_uy[:,1] + delta_uz[:,0])/2)
+#        sigma_vm = von_mises_stress(np.array([sxx, syy, sxy]), ndim=2)
+#    else:
+#        delta_u  = (u[edofMat,0][...,None]*B_e)
+#        delta_u  = (u[edofMat,0][...,None]*B_e).sum(axis=1)
+#        sigma = C * delta_u 
+#        #sigma_von_mises_old = np.sum(np.sqrt(sigma ** 2), axis=1, keepdims=True)
+#        sigma_von_mises = np.abs(sigma[:,0] -sigma[:,1]).reshape(-1,1) 
     return sigma_vm
 
 def weaken_structure(index, xPhys):
