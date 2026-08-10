@@ -23,6 +23,7 @@ from femfrac.disorder import get_yield, weibull_redistribute
 # MAIN DRIVER
 def fem_tensiletest(nelx, nely, nelz=None,
                     xPhys=None, damage=None, f_input=None, penal=3, 
+                    eps=None, eps_pl=None,
                     Emax=1.0, Emin=1e-9, nu=0.3,
                     KE=None, edofMat=None, ndof=None,
                     lin_solver="cvxopt-cholmod", preconditioner=None,
@@ -127,8 +128,9 @@ def fem_tensiletest(nelx, nely, nelz=None,
         print("eps_yy measured ",np.abs(u[1::3]).max()/ (nely*l[1]) )
         print("eps_zz measured ",np.abs(u[2::3]).max()/ (nelz*l[2]) )
     #
-    eps = get_element_strain(u, edofMat, nelz) 
-    eps_pl = np.zeros(eps.shape, dtype=float)
+    if eps is None and eps_pl is None:
+        eps = np.array(get_element_strain(u, edofMat, nelz)) 
+        eps_pl = np.zeros(eps.shape, dtype=float)
     sigma_vm = get_vm_stress(u, xPhys, edofMat, nelz) 
     print(os.getcwd())
     if export:
@@ -140,7 +142,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
                    xPhys=xPhys - damage,
                    u=u,f=f,
                    stress_vm=sigma_vm)
-    return u, f, xPhys, edofMat,yield_scaled, sigma_vm 
+    return u, f, eps, eps_pl, xPhys, edofMat, yield_scaled, sigma_vm 
 
 def get_stiffnessmatrix(nelx, nely, nelz=None,
                         xPhys=None, penal=3, assembly_mode="full", l=1., 
@@ -226,20 +228,21 @@ if __name__ == "__main__":
     KE, edofMat, ndof, nd_ndof= get_stiffnessmatrix(nelx, nely, nelz=None, xPhys=xPhys, penal=3, 
                         Emax=Emax, Emin=Emin, nu=nu)
     
-    u, f, xPhys, edofMat, yield_scaled, sigma_vm   = fem_tensiletest(nelx=nelx, nely=nely,
+    u, f, eps, eps_pl, xPhys, edofMat, yield_scaled, sigma_vm   = fem_tensiletest(nelx=nelx, nely=nely,
                                                                     Emax=Emax, Emin=Emin, penal=penal, l=l, nu=nu,
                                                                     KE=KE, edofMat=edofMat, ndof=ndof,
                                                                     nelz=None, xPhys=xPhys, damage=damage,
                                                                     file="visualisation/tensile/hierarchical/tensile_test_0",
                                                                     thresholds=thresholds)
-    f, damage = burn_max_element(f, u, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, Emin, Emax, nu)
+    f, damage, eps, eps_pl = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, Emin, Emax, nu)
    
     for step in range(1,steps):
-        u, f, xPhys, edofMat, yield_scaled, sigma_vm  = fem_tensiletest(nelx=nelx, nely=nely,
+        u, f, eps, eps_pl, xPhys, edofMat, yield_scaled, sigma_vm  = fem_tensiletest(nelx=nelx, nely=nely,
                                                                        Emax=Emax, Emin=Emin, penal=penal, l=l, nu=nu,
+                                                                       eps=eps, eps_pl=eps_pl,
                                                                        KE=KE, edofMat=edofMat, ndof=ndof,
                                                                        nelz=None, xPhys=xPhys, damage=damage,
                                                                        file=f"visualisation/tensile/hierarchical/tensile_test_{step}",
                                                                        thresholds=thresholds)
 
-        f, damage = burn_max_element(f, u, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, Emin, Emax, nu)
+        f, damage, eps, eps_pl = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, Emin, Emax, nu)

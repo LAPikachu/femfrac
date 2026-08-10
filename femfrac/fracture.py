@@ -78,7 +78,7 @@ def damage_element(index, f, u, edofMat, l, damage, penal, Emin, Emax, nu, t=1.,
     """
     B_e = bmatrix_rectangle(xi=np.array([0.]), eta=np.array([0.]),
                              a=l, b=l)[0]      # (3,8)
-    E_local = Emin + (1 - damage[index])**penal *(Emax- Emin)
+    E_local = Emin + (1 - damage[index])**penal *(Emax- Emin) # TODO what is this ?!
     D = get_D_planestress(E_local, nu)
     eps_current = get_element_strain(u, edofMat, index, B_e)
     eps0 = -relax * eps_current                       # eigenstrain to apply
@@ -86,16 +86,17 @@ def damage_element(index, f, u, edofMat, l, damage, penal, Emin, Emax, nu, t=1.,
     f_eig = t * Ae * (B_e.T @ D @ eps0)                # (8,)
     f_new = f.copy()
     f_new[edofMat[index], 0] += f_eig                  # additive scatter
+    # TODO increment plastic strain here
     return f_new
 
-def burn_max_element(f, u,sigma_von_mises, thresholds, edofMat, l, damage, penal, Emin, Emax, nu, t=1., relax=1.0):
+def burn_max_element(f, u, eps, eps_pl, sigma_von_mises, thresholds, edofMat, l, damage, penal, Emin, Emax, nu, t=1., relax=1.0):
     # interpolate over element
     #sigma_von_mises = von_mises_stress(T, xPhys, edofMat, nelz)
     ratios = np.array(sigma_von_mises).reshape(-1) - np.array(thresholds)
     max_element_index  = np.argmax(ratios)
     damage[max_element_index] += relax
     f_new = damage_element(max_element_index, f, u, edofMat, l, damage, penal, Emin, Emax, nu, t=1., relax=1.0)
-    return f_new, damage
+    return f_new, damage, eps, eps_pl
 
 def get_element_strain(u, edofMat, nelz):
     if nelz == None:  
@@ -115,11 +116,14 @@ def get_element_strain(u, edofMat, nelz):
         edofMaty = edofMat[:,1::2]
         eps_x  = (ux[(edofMatx/2).astype(int),0][...,None]*B_e).sum(axis=1)
         eps_y = (uy[((edofMaty-1)/2).astype(int),0][...,None]*B_e).sum(axis=1)
-        return eps_x, eps_y 
+        eps = np.column_stack((eps_x, eps_y))
+        return eps 
 
 def get_vm_stress(u, xPhys, edofMat, nelz : None):
     C = xPhys.reshape(-1,1)
-    delta_ux, delta_uy = get_element_strain(u, edofMat, nelz)
+    eps = get_element_strain(u, edofMat, nelz)
+    delta_ux = eps[:,:2]
+    delta_uy = eps[:,2:]
     sxx = C * delta_ux[:,0][...,None] # [dux/dx, dux/dy]  
     syy = C * delta_uy[:,1][...,None] # [duy/dx, duy/dy]  
     sxy = C * ((delta_ux[:,1][...,None] + delta_uy[:,0][...,None])/2)
