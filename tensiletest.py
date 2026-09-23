@@ -142,7 +142,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
                    xPhys=xPhys - damage,
                    u=u,f=f,
                    stress_vm=sigma_vm)
-    return u, f, eps, eps_pl, xPhys, edofMat, yield_scaled, sigma_vm 
+    return u, f, eps, eps_pl,  xPhys, edofMat, yield_scaled, sigma_vm 
 
 def get_stiffnessmatrix(nelx, nely, nelz=None,
                         xPhys=None, penal=3, assembly_mode="full", l=1., 
@@ -194,8 +194,8 @@ def get_stiffnessmatrix(nelx, nely, nelz=None,
 
 if __name__ == "__main__":
     #
-    nelx = 10
-    nely = 10
+    nelx = 100
+    nely = 100
     nelz = None
     steps=10
     penal=3 
@@ -234,15 +234,15 @@ if __name__ == "__main__":
                                                                     nelz=None, xPhys=xPhys, damage=damage,
                                                                     file="visualisation/tensile/hierarchical/tensile_test_0",
                                                                     thresholds=thresholds)
-    f, damage, eps, eps_pl = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, Emin, Emax, nu)
+    f, xPhys, eps, eps_pl = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, penal, Emin, Emax, nu)
    
     for step in range(1,steps):
         u, f, eps, eps_pl, xPhys, edofMat, yield_scaled, sigma_vm  = fem_tensiletest(nelx=nelx, nely=nely,
                                                                        Emax=Emax, Emin=Emin, penal=penal, l=l, nu=nu,
-                                                                       eps=eps, eps_pl=eps_pl,
+                                                                       eps=eps, eps_pl=eps_pl, f_input=f,
                                                                        KE=KE, edofMat=edofMat, ndof=ndof,
                                                                        nelz=None, xPhys=xPhys, damage=damage,
                                                                        file=f"visualisation/tensile/hierarchical/tensile_test_{step}",
                                                                        thresholds=thresholds)
 
-        f, damage, eps, eps_pl = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, Emin, Emax, nu)
+        f, xPhys, eps, eps_pl = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, Emin, Emax, nu)
