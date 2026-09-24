@@ -115,7 +115,10 @@ def damage_element(index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal,
     f_eig = t * Ae * (B_e.T @ D @ eps0)                # (8,)
     """
     f_new = f.copy()
-    f_new[edofMat[index], 0] += df_eig                  # additive scatter
+    print(edofMat[index])
+    for e,i in enumerate(edofMat[index]):
+        f_new[i] = df_eig[e]
+    f_new.squeeze(-1)
     xPhys[index] = 0
     return f_new, xPhys
 
@@ -125,7 +128,7 @@ def burn_max_element(f, u, eps, eps_pl, sigma_vm, thresholds, edofMat, l, xPhys,
     ratios = np.array(sigma_vm).reshape(-1) - np.array(thresholds)
     max_element_index  = np.argmax(ratios)
     xPhys[max_element_index] += relax
-    f_new = damage_element(max_element_index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal, Emin, Emax, nu, t=1., relax=1.0)
+    f_new, xPhys = damage_element(max_element_index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal, Emin, Emax, nu, t=1., relax=1.0)
     return f_new, xPhys, eps, eps_pl
 
 def get_element_strain(u, edofMat, nelz):

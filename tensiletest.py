@@ -142,7 +142,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
                    xPhys=xPhys - damage,
                    u=u,f=f,
                    stress_vm=sigma_vm)
-    return u, f, eps, eps_pl,  xPhys, edofMat, yield_scaled, sigma_vm 
+    return u, f, eps, eps_pl,  xPhys, edofMat, yield_scaled, sigma_vm, free, fixed 
 
 def get_stiffnessmatrix(nelx, nely, nelz=None,
                         xPhys=None, penal=3, assembly_mode="full", l=1., 
@@ -194,8 +194,8 @@ def get_stiffnessmatrix(nelx, nely, nelz=None,
 
 if __name__ == "__main__":
     #
-    nelx = 100
-    nely = 100
+    nelx = 10
+    nely = 10
     nelz = None
     steps=10
     penal=3 
@@ -203,6 +203,8 @@ if __name__ == "__main__":
     Emin=1e-9
     nu=0.3    
     l=1.
+    solver = "cvxopt-cholmod"
+    preconditioner=None 
     #
     import sys
     if len(sys.argv)>1: 
@@ -228,7 +230,7 @@ if __name__ == "__main__":
     KE, edofMat, ndof, nd_ndof= get_stiffnessmatrix(nelx, nely, nelz=None, xPhys=xPhys, penal=3, 
                         Emax=Emax, Emin=Emin, nu=nu)
     
-    u, f, eps, eps_pl, xPhys, edofMat, yield_scaled, sigma_vm   = fem_tensiletest(nelx=nelx, nely=nely,
+    u, f, eps, eps_pl, xPhys, edofMat, yield_scaled, sigma_vm, free, fixed   = fem_tensiletest(nelx=nelx, nely=nely,
                                                                     Emax=Emax, Emin=Emin, penal=penal, l=l, nu=nu,
                                                                     KE=KE, edofMat=edofMat, ndof=ndof,
                                                                     nelz=None, xPhys=xPhys, damage=damage,
@@ -236,7 +238,15 @@ if __name__ == "__main__":
                                                                     thresholds=thresholds)
     f, xPhys, eps, eps_pl = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, penal, Emin, Emax, nu)
    
+    KE = apply_bc(K=KE, solver=solver,
+            free=free,fixed=fixed) 
     for step in range(1,steps):
+        rhs = f
+        u[free, :], fact, precond, = solve_lin(K=KE, 
+                                           rhs=rhs[free], 
+                                           solver=solver,
+                                           preconditioner=preconditioner)
+        '''
         u, f, eps, eps_pl, xPhys, edofMat, yield_scaled, sigma_vm  = fem_tensiletest(nelx=nelx, nely=nely,
                                                                        Emax=Emax, Emin=Emin, penal=penal, l=l, nu=nu,
                                                                        eps=eps, eps_pl=eps_pl, f_input=f,
@@ -244,5 +254,5 @@ if __name__ == "__main__":
                                                                        nelz=None, xPhys=xPhys, damage=damage,
                                                                        file=f"visualisation/tensile/hierarchical/tensile_test_{step}",
                                                                        thresholds=thresholds)
-
+        '''
         f, xPhys, eps, eps_pl = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, Emin, Emax, nu)
