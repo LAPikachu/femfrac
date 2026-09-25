@@ -98,11 +98,11 @@ def damage_element(index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal,
     strain (i.e. eps0 = -eps_current); relax<1.0 partially relaxes it.
     """
     eps_e = eps - eps_pl
-    eps_pl, delta_eps_pl = increment_eps_pl(eps_e, eps_pl, index, xPhys, sigma_vm, shear_mod = 0.5, d_e_0 = 0.5) 
+    eps_pl, delta_eps_pl = increment_eps_pl(eps_e, eps_pl, index, xPhys, sigma_vm, shear_mod = 0.5, d_e_0 = 0.1) 
     B_e = bmatrix_rectangle(xi=np.array([0.]), eta=np.array([0.]),
                             a=l, b=l)[0]      # (3,8)
     eps_rearranged = np.array([delta_eps_pl[0], delta_eps_pl[2], delta_eps_pl[1]]) # arrange to dux/dx, duy/dy, dux/dy
-    df_eig  = eps_rearranged @ B_e # TODO claculate f_eig
+    df_eig  = eps_rearranged @ B_e 
     """
      eps_pl stores [dux/dx, dux/dy, duy/dy, duy/dux]
     """

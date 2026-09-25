@@ -194,10 +194,10 @@ def get_stiffnessmatrix(nelx, nely, nelz=None,
 
 if __name__ == "__main__":
     #
-    nelx = 10
-    nely = 10
+    nelx = 100
+    nely = 100
     nelz = None
-    steps=10
+    steps=100
     penal=3 
     Emax=1.0
     Emin=1e-9
@@ -246,13 +246,16 @@ if __name__ == "__main__":
                                            rhs=rhs[free], 
                                            solver=solver,
                                            preconditioner=preconditioner)
-        '''
-        u, f, eps, eps_pl, xPhys, edofMat, yield_scaled, sigma_vm  = fem_tensiletest(nelx=nelx, nely=nely,
-                                                                       Emax=Emax, Emin=Emin, penal=penal, l=l, nu=nu,
-                                                                       eps=eps, eps_pl=eps_pl, f_input=f,
-                                                                       KE=KE, edofMat=edofMat, ndof=ndof,
-                                                                       nelz=None, xPhys=xPhys, damage=damage,
-                                                                       file=f"visualisation/tensile/hierarchical/tensile_test_{step}",
-                                                                       thresholds=thresholds)
-        '''
+        eps = np.array(get_element_strain(u, edofMat, nelz)) 
+        eps_pl = np.zeros(eps.shape, dtype=float)
+        sigma_vm = get_vm_stress(u, xPhys, edofMat, nelz)
+        file=f"visualisation/tensile/hierarchical/tensile_test_{step}" 
+        export_vtk(filename=file,
+                   nelx=nelx,
+                   nely=nely,
+                   nelz=nelz,
+                   elem_size=l,
+                   xPhys=xPhys - damage,
+                   u=u,f=f,
+                   stress_vm=sigma_vm)
         f, xPhys, eps, eps_pl = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, Emin, Emax, nu)
