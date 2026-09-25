@@ -17,6 +17,9 @@ from topoptlab.solve_linsystem import solve_lin
 # output final design to a Paraview readable format
 from topoptlab.output_designs import export_vtk
 
+# get shear bcs
+from bc import sheartest_2d
+
 from femfrac.fracture import (burn_max_element, get_vm_stress, weaken_structure, insert_random_voids,
                              get_element_strain, insert_hierarchical_gaps, insert_notch)
 from femfrac.disorder import get_yield, weibull_redistribute
@@ -82,7 +85,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
     ymax = 1.1
     ymin = ymax*5.
     if nelz is None:
-        bc = tensiletest_2d
+        bc = sheartest_2d
     else:
         bc = tensiletest_3d
     # BC's and support
@@ -221,7 +224,7 @@ if __name__ == "__main__":
     n = np.array([nelx,nely,nelz][:ndim])
     thresholds = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
     xPhys = np.ones((np.prod(n).astype(int),1))
-    xPhys = insert_notch(xPhys=xPhys, length=5)
+    #xPhys = insert_notch(xPhys=xPhys, length=5)
     #xPhys, heights = insert_hierarchical_gaps(xPhys, nelx, nely, nelz, 5, 0, 4)
     #xPhys = insert_random_voids(xPhys, np.sum(heights),nelx, nely, nelz)
     xPhys = np.squeeze(xPhys, axis=1)
@@ -234,7 +237,7 @@ if __name__ == "__main__":
                                                                     Emax=Emax, Emin=Emin, penal=penal, l=l, nu=nu,
                                                                     KE=KE, edofMat=edofMat, ndof=ndof,
                                                                     nelz=None, xPhys=xPhys, damage=damage,
-                                                                    file="visualisation/tensile/hierarchical/tensile_test_0",
+                                                                    file="visualisation/shear/hierarchical/shear_test_0",
                                                                     thresholds=thresholds)
     f, xPhys, eps, eps_pl = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, penal, Emin, Emax, nu)
    
@@ -249,7 +252,7 @@ if __name__ == "__main__":
         eps = np.array(get_element_strain(u, edofMat, nelz)) 
         eps_pl = np.zeros(eps.shape, dtype=float)
         sigma_vm = get_vm_stress(u, xPhys, edofMat, nelz)
-        file=f"visualisation/tensile/hierarchical/tensile_test_{step}" 
+        file=f"visualisation/shear/hierarchical/shear_test_{step}" 
         export_vtk(filename=file,
                    nelx=nelx,
                    nely=nely,
