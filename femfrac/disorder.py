@@ -4,8 +4,8 @@ def weibull_redistribute(values, k=4.0, scale=1.0):
     n = len(values)
     return (np.random.weibull(k, size = n) * scale).tolist()
 
-def get_yield(damage, ymin, ymax, penal = 3):
-    return (ymin + (1 - damage)** penal*(ymax-ymin))
+def get_yield(xPhys, ymin, ymax, penal = 3):
+    return (ymin + xPhys** penal*(ymax-ymin))
 
 if __name__ == "__main__":
     array = np.ones(1000)

@@ -100,7 +100,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
         f = f_input
     # interpolate material properties
     E_scaled = (Emin+(xPhys)** penal*(Emax-Emin))
-    yield_scaled = get_yield(damage, ymin, ymax) 
+    yield_scaled = get_yield(xPhys, ymin, ymax) 
     # entries of stiffness matrix
     rhs = f
     # apply boundary conditions to matrix
@@ -142,7 +142,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
                    nely=nely,
                    nelz=nelz,
                    elem_size=l,
-                   xPhys=xPhys - damage,
+                   xPhys=xPhys,
                    u=u,f=f,
                    stress_vm=sigma_vm)
     return u, f, eps, eps_pl,  xPhys, edofMat, yield_scaled, sigma_vm, free, fixed 
@@ -234,11 +234,11 @@ if __name__ == "__main__":
                         Emax=Emax, Emin=Emin, nu=nu)
     
     u, f, eps, eps_pl, xPhys, edofMat, yield_scaled, sigma_vm, free, fixed   = fem_tensiletest(nelx=nelx, nely=nely,
-                                                                    Emax=Emax, Emin=Emin, penal=penal, l=l, nu=nu,
-                                                                    KE=KE, edofMat=edofMat, ndof=ndof,
-                                                                    nelz=None, xPhys=xPhys, damage=damage,
-                                                                    file="visualisation/shear/hierarchical/shear_test_0",
-                                                                    thresholds=thresholds)
+                                                                               Emax=Emax, Emin=Emin, penal=penal, l=l, nu=nu,
+                                                                               KE=KE, edofMat=edofMat, ndof=ndof,
+                                                                               nelz=None, xPhys=xPhys,
+                                                                               file="visualisation/shear/hierarchical/shear_test_0",
+                                                                               thresholds=thresholds)
     f, xPhys, eps, eps_pl = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, penal, Emin, Emax, nu)
    
     KE = apply_bc(K=KE, solver=solver,
@@ -261,4 +261,4 @@ if __name__ == "__main__":
                    xPhys=xPhys - damage,
                    u=u,f=f,
                    stress_vm=sigma_vm)
-        f, xPhys, eps, eps_pl = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, Emin, Emax, nu)
+        f, xPhys, eps, eps_pl = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, penal, Emin, Emax, nu)
