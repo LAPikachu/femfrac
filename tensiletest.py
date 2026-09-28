@@ -18,7 +18,7 @@ from topoptlab.solve_linsystem import solve_lin
 from topoptlab.output_designs import export_vtk
 
 # get shear bcs
-from bc import sheartest_2d
+from bc import simple_shear_2d, pure_shear_2d
 
 from femfrac.fracture import (burn_max_element, get_vm_stress, weaken_structure, insert_random_voids,
                              get_element_strain, insert_hierarchical_gaps, insert_notch)
@@ -85,7 +85,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
     ymax = 1.1
     ymin = ymax*5.
     if nelz is None:
-        bc = sheartest_2d
+        bc = pure_shear_2d
     else:
         bc = tensiletest_3d
     # BC's and support
@@ -197,8 +197,8 @@ def get_stiffnessmatrix(nelx, nely, nelz=None,
 
 if __name__ == "__main__":
     #
-    nelx = 100
-    nely = 100
+    nelx = 50
+    nely = 50
     nelz = None
     steps=100
     penal=3 
