@@ -1,6 +1,7 @@
 import numpy as np
 from topoptlab.elements.stress_measures import von_mises_stress
 from topoptlab.elements.bilinear_quadrilateral import bmatrix_rectangle
+from femfrac.disorder import get_yield
 
 def get_x_coordinate(i, nelx, nely, nelz):
     if nelz==None:
@@ -78,8 +79,8 @@ def get_flow_direction(eps, C , sigma_vm_loc, index):
    direction = np.array([delta_eps_xx, delta_eps_xy, delta_eps_yy, delta_eps_xy]) 
    return direction
 
-def increment_eps_pl(eps, eps_pl, index, xPhys, sigma_vm, shear_mod = 0.5, d_e_0 = 0.5):
-    C = xPhys.reshape(-1,1)
+def increment_eps_pl(eps, eps_pl, index, E_scaled, sigma_vm, shear_mod = 0.5, d_e_0 = 0.5):
+    C = E_scaled.reshape(-1,1)
     flow_dir = get_flow_direction(eps, C, sigma_vm[index], index).squeeze(-1) # [dux/dx, duy/dx, duy/dy, duy/dx]
     # TODO: gaussian to fluctiate flow dir like: new_flow_dir = M(phi).T @ flow_dir M(phic)
     delta_eps_pl = d_e_0 * 2 * sigma_vm[index]/shear_mod
@@ -91,7 +92,7 @@ def increment_eps_pl(eps, eps_pl, index, xPhys, sigma_vm, shear_mod = 0.5, d_e_0
     return eps_pl, increment 
     
 
-def damage_element(index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal, Emin, Emax, nu, t=1., relax=1.0):
+def damage_element(index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal, E_scaled, Emin, Emax, nu, t=1., relax=1.0):
     """
     Damage one element by adding an eigenstrain-equivalent nodal force to f.
     K is untouched. relax=1.0 fully relaxes the element's current elastic
@@ -119,17 +120,18 @@ def damage_element(index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal,
     for e,i in enumerate(edofMat[index]):
         f_new[i] = df_eig[e]
     f_new.squeeze(-1)
-    xPhys[index] = 0
     return f_new, xPhys
 
-def burn_max_element(f, u, eps, eps_pl, sigma_vm, thresholds, edofMat, l, xPhys, penal, Emin, Emax, nu, t=1., relax=1.0):
+def burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l, xPhys, damage, penal, E_scaled, Emin, Emax, nu, t=1., relax=0.5):
     # interpolate over element
     #sigma_vm = von_mises_stress(T, xPhys, edofMat, nelz)
-    ratios = np.array(sigma_vm).reshape(-1) - np.array(thresholds)
+    ratios = np.array(sigma_vm).reshape(-1) / np.array(yield_scaled)
     max_element_index  = np.argmax(ratios)
-    xPhys[max_element_index] += relax
-    f_new, xPhys = damage_element(max_element_index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal, Emin, Emax, nu, t=1., relax=1.0)
-    return f_new, xPhys, eps, eps_pl
+    damage[max_element_index] += relax
+    yield_scaled[max_element_index] = get_yield(xPhys[max_element_index] - damage[max_element_index],
+                                                ymin=1.1, ymax=5.5)
+    f_new, _ = damage_element(max_element_index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal, E_scaled, Emin, Emax, nu, t=1., relax=1.0)
+    return f_new, xPhys, damage, eps, eps_pl, yield_scaled, E_scaled
 
 def get_element_strain(u, edofMat, nelz):
     if nelz == None:  

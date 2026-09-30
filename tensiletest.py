@@ -16,12 +16,14 @@ from topoptlab.fem import assemble_matrix,apply_bc
 from topoptlab.solve_linsystem import solve_lin
 # output final design to a Paraview readable format
 from topoptlab.output_designs import export_vtk
+# 
+from topoptlab.log_utils import EmptyLogger,SimpleLogger
 
 # get shear bcs
 from bc import simple_shear_2d, pure_shear_2d
 
-from femfrac.fracture import (burn_max_element, get_vm_stress, weaken_structure, insert_random_voids,
-                             get_element_strain, insert_hierarchical_gaps, insert_notch)
+from femfrac.fracture import (burn_max_element, get_vm_stress, weaken_structure,
+                              insert_random_voids, get_element_strain, insert_hierarchical_gaps, insert_notch)
 from femfrac.disorder import get_yield, weibull_redistribute
 # MAIN DRIVER
 def fem_tensiletest(nelx, nely, nelz=None,
@@ -99,7 +101,6 @@ def fem_tensiletest(nelx, nely, nelz=None,
     else:
         f = f_input
     # interpolate material properties
-    E_scaled = (Emin+(xPhys)** penal*(Emax-Emin))
     yield_scaled = get_yield(xPhys, ymin, ymax) 
     # entries of stiffness matrix
     rhs = f
@@ -114,7 +115,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
                                            preconditioner=preconditioner)
     if isinstance(l,float):
         l = np.array( [l for i in np.arange(ndim)])
-    if ndim == 2:
+    if ndim == 2: #TODO: Invoke logger
         sigma = f.max()*(nely+1)/l[1]
         print("sigma: ", sigma)
         print("eps_xx theory ",sigma/Emax)
@@ -193,12 +194,12 @@ def get_stiffnessmatrix(nelx, nely, nelz=None,
                         ndof=ndof,
                         solver=lin_solver,
                         springs=None)
-    return KE, edofMat, ndof, nd_ndof
+    return KE, edofMat, ndof, nd_ndof, E_scaled
 
 if __name__ == "__main__":
     #
-    nelx = 50
-    nely = 50
+    nelx = 100
+    nely = 100
     nelz = None
     steps=100
     penal=3 
@@ -224,13 +225,13 @@ if __name__ == "__main__":
     n = np.array([nelx,nely,nelz][:ndim])
     thresholds = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
     xPhys = np.ones((np.prod(n).astype(int),1))
-    #xPhys = insert_notch(xPhys=xPhys, length=5)
+    xPhys = insert_notch(xPhys=xPhys, length=5)
     #xPhys, heights = insert_hierarchical_gaps(xPhys, nelx, nely, nelz, 5, 0, 4)
     #xPhys = insert_random_voids(xPhys, np.sum(heights),nelx, nely, nelz)
     xPhys = np.squeeze(xPhys, axis=1)
     damage = np.squeeze(np.zeros((np.prod(n).astype(int),1)), axis=1) 
     #thresholds = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
-    KE, edofMat, ndof, nd_ndof= get_stiffnessmatrix(nelx, nely, nelz=None, xPhys=xPhys, penal=3, 
+    KE, edofMat, ndof, nd_ndof, E_scaled= get_stiffnessmatrix(nelx, nely, nelz=None, xPhys=xPhys, penal=3, 
                         Emax=Emax, Emin=Emin, nu=nu)
     
     u, f, eps, eps_pl, xPhys, edofMat, yield_scaled, sigma_vm, free, fixed   = fem_tensiletest(nelx=nelx, nely=nely,
@@ -239,7 +240,7 @@ if __name__ == "__main__":
                                                                                nelz=None, xPhys=xPhys,
                                                                                file="visualisation/shear/hierarchical/shear_test_0",
                                                                                thresholds=thresholds)
-    f, xPhys, eps, eps_pl = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, penal, Emin, Emax, nu)
+    f, xPhys, damage, eps, eps_pl, yield_scaled, E_scaled = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, E_scaled, Emin, Emax, nu)
    
     KE = apply_bc(K=KE, solver=solver,
             free=free,fixed=fixed) 
@@ -261,4 +262,4 @@ if __name__ == "__main__":
                    xPhys=xPhys - damage,
                    u=u,f=f,
                    stress_vm=sigma_vm)
-        f, xPhys, eps, eps_pl = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, penal, Emin, Emax, nu)
+        f, xPhys, damage, eps, eps_pl, yield_scaled, E_scaled = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, E_scaled, Emin, Emax, nu)
