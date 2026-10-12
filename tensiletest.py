@@ -87,7 +87,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
     ymax = 1.1
     ymin = ymax*5.
     if nelz is None:
-        bc = pure_shear_2d
+        bc = simple_shear_2d
     else:
         bc = tensiletest_3d
     # BC's and support
@@ -135,7 +135,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
     if eps is None and eps_pl is None:
         eps = np.array(get_element_strain(u, edofMat, nelz)) 
         eps_pl = np.zeros(eps.shape, dtype=float)
-    sigma_vm = get_vm_stress(u, xPhys, edofMat, nelz) 
+    sigma_vm = get_vm_stress(u, xPhys, edofMat,nelx, nely, nelz) 
     print(os.getcwd())
     if export:
         export_vtk(filename=file,
@@ -201,7 +201,7 @@ if __name__ == "__main__":
     nelx = 100
     nely = 100
     nelz = None
-    steps=100
+    steps=1
     penal=3 
     Emax=1.0
     Emin=1e-9
@@ -252,7 +252,7 @@ if __name__ == "__main__":
                                            preconditioner=preconditioner)
         eps = np.array(get_element_strain(u, edofMat, nelz)) 
         eps_pl = np.zeros(eps.shape, dtype=float)
-        sigma_vm = get_vm_stress(u, xPhys, edofMat, nelz)
+        sigma_vm = get_vm_stress(u, xPhys, edofMat,nelx, nely, nelz)
         file=f"visualisation/shear/hierarchical/shear_test_{step}" 
         export_vtk(filename=file,
                    nelx=nelx,

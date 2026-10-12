@@ -2,6 +2,8 @@ import numpy as np
 from topoptlab.elements.stress_measures import von_mises_stress
 from topoptlab.elements.bilinear_quadrilateral import bmatrix_rectangle
 from femfrac.disorder import get_yield
+from scipy.ndimage import gaussian_filter
+from topoptlab.utils import map_eltoimg, map_imgtoel
 
 def get_x_coordinate(i, nelx, nely, nelz):
     if nelz==None:
@@ -162,9 +164,36 @@ def get_stress_tensor(eps, C):
     sxy = C * ((delta_ux[:,1][...,None] + delta_uy[:,0][...,None])/2)
     return np.array([sxx, syy, sxy])
 
-def get_vm_stress(u, xPhys, edofMat, nelz : None):
+def gaussian_filter_eps(eps, nelx, nely, sigma=1.0, mode="nearest"):
+    """Apply an isotropic Gaussian filter to an element-based strain field.
+
+    Parameters
+    ----------
+    eps : np.ndarray, shape (nelx*nely,) or (nelx*nely, ncomp)
+        element field (e.g. strain), one value (or vector of values)
+        per element, ordered like the mesh (i = x*nely + y).
+    nelx, nely : int
+        number of elements in x/y direction (equal for the square grid).
+    sigma : float
+        Gaussian standard deviation in element units.
+    mode : str
+        boundary handling passed to scipy.ndimage.gaussian_filter
+        (e.g. "nearest", "reflect", "wrap").
+
+    Returns
+    -------
+    eps_filtered : np.ndarray
+        filtered field, same shape as `eps`.
+    """
+    eps = np.asarray(eps, dtype=float)
+    img = map_eltoimg(eps, nelx=nelx, nely=nely)
+    img = gaussian_filter(img, sigma=sigma, mode=mode, axes=(0, 1))
+    return map_imgtoel(img, nelx=nelx, nely=nely)
+
+def get_vm_stress(u, xPhys, edofMat,nelx, nely, nelz : None):
     C = xPhys.reshape(-1,1)
-    eps = get_element_strain(u, edofMat, nelz)
+    eps_unfiltered = get_element_strain(u, edofMat, nelz)
+    eps = gaussian_filter_eps(eps_unfiltered, nelx, nely, sigma=1.0, mode="nearest")
     sxx, syy, sxy = get_stress_tensor(eps, C)
     sigma_vm = von_mises_stress(np.squeeze([sxx, syy, sxy], axis=2).T, ndim=2)
 #    elif edofMat.shape[1] == 12: #check if 3d-vector-field
