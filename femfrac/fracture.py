@@ -1,7 +1,7 @@
 import numpy as np
 from topoptlab.elements.stress_measures import von_mises_stress
 from topoptlab.elements.bilinear_quadrilateral import bmatrix_rectangle
-# from femfrac.disorder import get_yield
+from femfrac.disorder import get_yield
 from scipy.ndimage import gaussian_filter
 from topoptlab.utils import map_eltoimg, map_imgtoel
 
