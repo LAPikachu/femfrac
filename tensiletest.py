@@ -15,7 +15,8 @@ from topoptlab.elements.linear_elasticity_3d import lk_linear_elast_3d
 from topoptlab.fem import assemble_matrix,apply_bc
 from topoptlab.solve_linsystem import solve_lin
 # output final design to a Paraview readable format
-from topoptlab.output_designs import export_vtk
+from femfrac.postprocessing import export_vtk
+#from topoptlab.output_designs import export_vtk
 # 
 from topoptlab.log_utils import EmptyLogger,SimpleLogger
 
@@ -25,6 +26,7 @@ from bc import simple_shear_2d, pure_shear_2d
 from femfrac.fracture import (burn_max_element, get_vm_stress, weaken_structure,
                               insert_random_voids, get_element_strain, insert_hierarchical_gaps, insert_notch)
 from femfrac.disorder import get_yield, weibull_redistribute
+
 # MAIN DRIVER
 def fem_tensiletest(nelx, nely, nelz=None,
                     xPhys=None, damage=None, f_input=None, penal=3, 
@@ -87,7 +89,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
     ymax = 1.1
     ymin = ymax*5.
     if nelz is None:
-        bc = simple_shear_2d
+        bc = pure_shear_2d
     else:
         bc = tensiletest_3d
     # BC's and support
@@ -137,6 +139,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
         eps_pl = np.zeros(eps.shape, dtype=float)
     sigma_vm = get_vm_stress(u, xPhys, edofMat,nelx, nely, nelz) 
     print(os.getcwd())
+    eps = get_element_strain(u, edofMat, nelz)
     if export:
         export_vtk(filename=file,
                    nelx=nelx,
@@ -145,6 +148,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
                    elem_size=l,
                    xPhys=xPhys,
                    u=u,f=f,
+                   eps=eps,
                    stress_vm=sigma_vm)
     return u, f, eps, eps_pl,  xPhys, edofMat, yield_scaled, sigma_vm, free, fixed 
 
@@ -201,7 +205,7 @@ if __name__ == "__main__":
     nelx = 100
     nely = 100
     nelz = None
-    steps=1
+    steps=100
     penal=3 
     Emax=1.0
     Emin=1e-9
@@ -260,6 +264,6 @@ if __name__ == "__main__":
                    nelz=nelz,
                    elem_size=l,
                    xPhys=xPhys - damage,
-                   u=u,f=f,
+                   u=u,f=f, eps=eps,
                    stress_vm=sigma_vm)
         f, xPhys, damage, eps, eps_pl, yield_scaled, E_scaled = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, E_scaled, Emin, Emax, nu)
