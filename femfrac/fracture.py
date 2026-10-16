@@ -1,7 +1,7 @@
 import numpy as np
 from topoptlab.elements.stress_measures import von_mises_stress
 from topoptlab.elements.bilinear_quadrilateral import bmatrix_rectangle
-from femfrac.disorder import get_yield
+# from femfrac.disorder import get_yield
 from scipy.ndimage import gaussian_filter
 from topoptlab.utils import map_eltoimg, map_imgtoel
 
@@ -234,3 +234,22 @@ def increase_load(index, f,edofMat, load=1.):
     f_new = f
     f_new[index] = load 
     return f_new
+
+
+if __name__ == '__main__':
+    import matplotlib.pyplot as plt
+    nx = 10
+    ny = nx
+    eps = np.zeros((nx*ny,4)) 
+    eps[55] = [1., 0, 0.5, 0]
+    e_img = map_eltoimg(eps, nx, ny)  
+    gauss_eps = gaussian_filter_eps(eps, nx, ny, sigma=1) 
+    gauss_img = map_eltoimg(gauss_eps, nx, ny)
+    fig, ax = plt.subplots(2,2)
+    ax[0,0].imshow(e_img[:,:,0], vmin=0, vmax=1.0)
+    ax[0,1].imshow(e_img[:,:,2], vmin=0, vmax=1.0)
+    ax[1,0].imshow(gauss_img[:,:,0], vmin=0, vmax=1.0)
+    ax[1,1].imshow(gauss_img[:,:,2], vmin=0, vmax=1.0)
+    plt.show()
+
+    
