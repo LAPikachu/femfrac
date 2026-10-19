@@ -49,7 +49,7 @@ def simple_shear_2d(nelx: int, nely: int,
     
 
 def pure_shear_2d(nelx: int, nely: int,
-                   ndof: int, 
+                   ndof: int, sign = 1, 
                    **kwargs: Any
                    ) -> Tuple[np.ndarray,np.ndarray,np.ndarray,np.ndarray,None]:
     """
@@ -62,7 +62,8 @@ def pure_shear_2d(nelx: int, nely: int,
         number of elements in y direction.
     ndof : int
         number of degrees of freedom.
- 
+    sign : int
+        signe of the shear applied
     Returns
     -------
     u : np.ndarray
@@ -86,14 +87,15 @@ def pure_shear_2d(nelx: int, nely: int,
     f = np.zeros((ndof, 1))
     u = np.zeros((ndof, 1))
     # applied force for pure shear
-    f[1:(2*(nely+1)):2] = -1.
-    f[-1:-(2*(nely+1)):-2] = 1.
-    f[(nelx*2)::(nelx+1)*2] = -1.
-    f[::(nelx+1)*2] = 1.
+    f[1:(2*(nely+1)):2] = -1.*sign # left side f_y = -1 
+    f[-1:-(2*(nely+1)):-2] = 1.*sign # right side f_y = +1
+    f[(nelx*2)::(nelx+1)*2] = -1.*sign # bottom side f_x = -1
+    f[::(nelx+1)*2] = 1.*sign # top part f_x = +1
     # fixed dofs
-    fixed = [np.arange(0,(nely+1)*2,2)]
-    fixed += [nely+1,ndof-nely-1]
+    fixed = [np.arange(1, (nely+1)*2, 2)] # left side
+    fixed += [np.arange(nelx*(nely+1)*2 + 1 , nelx*(nely+2)*2 + 2,2)] # right side 
+    fixed += [np.arange(0, (nelx + 1)*(nely+1)*2, (nely + 1)*2)] # top 
+    fixed += [np.arange(nely*2 , (nelx+1)*(nely+1)*2, (nely + 1)*2)] # bottom 
     fixed = np.hstack(fixed)
-    #
     return u,f,fixed,np.setdiff1d(dofs,fixed),None
     
