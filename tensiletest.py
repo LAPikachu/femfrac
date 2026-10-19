@@ -97,6 +97,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
                           nely=nely,
                           nelz=nelz,
                           ndof=ndof,
+                          sign=-1,
                           ymirror=False)
     if f_input is None:
         f = f
@@ -140,6 +141,10 @@ def fem_tensiletest(nelx, nely, nelz=None,
     sigma_vm = get_vm_stress(u, xPhys, edofMat,nelx, nely, nelz) 
     print(os.getcwd())
     eps = get_element_strain(u, edofMat, nelz)
+    shape_new = f.shape
+    fixed_or_not = np.zeros(f.shape[0])
+    fixed_or_not[fixed] = 1
+    fixed_or_not_dict = {"fixed_x" : fixed_or_not[::2,None], "fixed_y" : fixed_or_not[1::2,None]}
     if export:
         export_vtk(filename=file,
                    nelx=nelx,
@@ -148,6 +153,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
                    elem_size=l,
                    xPhys=xPhys,
                    u=u,f=f,
+                   nodal_variables=fixed_or_not_dict,
                    eps=eps,
                    stress_vm=sigma_vm)
     return u, f, eps, eps_pl,  xPhys, edofMat, yield_scaled, sigma_vm, free, fixed 
@@ -159,7 +165,7 @@ def get_stiffnessmatrix(nelx, nely, nelz=None,
         ndim = 2
         lk = lk_linear_elast_2d
         create_edofMat = create_edofMat2d
-        bc = tensiletest_2d
+        bc = pure_shear_2d
     else:
         ndim = 3
         lk = lk_linear_elast_3d
@@ -202,10 +208,10 @@ def get_stiffnessmatrix(nelx, nely, nelz=None,
 
 if __name__ == "__main__":
     #
-    nelx = 100
-    nely = 100
+    nelx = 10
+    nely = 10
     nelz = None
-    steps=100
+    steps=1
     penal=3 
     Emax=1.0
     Emin=1e-9
@@ -227,9 +233,9 @@ if __name__ == "__main__":
         ndim=3
     #
     n = np.array([nelx,nely,nelz][:ndim])
-    thresholds = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
+    thresholds = np.ones(n) # np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
     xPhys = np.ones((np.prod(n).astype(int),1))
-    xPhys = insert_notch(xPhys=xPhys, length=5)
+    #xPhys = insert_notch(xPhys=xPhys, length=5)
     #xPhys, heights = insert_hierarchical_gaps(xPhys, nelx, nely, nelz, 5, 0, 4)
     #xPhys = insert_random_voids(xPhys, np.sum(heights),nelx, nely, nelz)
     xPhys = np.squeeze(xPhys, axis=1)
@@ -242,7 +248,7 @@ if __name__ == "__main__":
                                                                                Emax=Emax, Emin=Emin, penal=penal, l=l, nu=nu,
                                                                                KE=KE, edofMat=edofMat, ndof=ndof,
                                                                                nelz=None, xPhys=xPhys,
-                                                                               file="visualisation/shear/hierarchical/shear_test_0",
+                                                                               file="visualisation/shear/shear_test2_0",
                                                                                thresholds=thresholds)
     f, xPhys, damage, eps, eps_pl, yield_scaled, E_scaled = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, E_scaled, Emin, Emax, nu)
    
@@ -257,7 +263,7 @@ if __name__ == "__main__":
         eps = np.array(get_element_strain(u, edofMat, nelz)) 
         eps_pl = np.zeros(eps.shape, dtype=float)
         sigma_vm = get_vm_stress(u, xPhys, edofMat,nelx, nely, nelz)
-        file=f"visualisation/shear/hierarchical/shear_test_{step}" 
+        file=f"visualisation/shear/shear_test2_{step}" 
         export_vtk(filename=file,
                    nelx=nelx,
                    nely=nely,
