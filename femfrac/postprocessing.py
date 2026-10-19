@@ -172,9 +172,6 @@ def export_vtk(filename: str,
             eps_xx = eps[:, 0]
             eps_xy = 0.5 * (eps[:, 1] + eps[:, 3])
             eps_yy = eps[:, 2]
-            el_data["eps_xx"] = [eps_xx]
-            el_data["eps_yy"] = [eps_yy]
-            el_data["eps_xy"] = [eps_xy]
             # symmetric 2nd-order tensor in VTK order
             # [xx, xy, xz, yx, yy, yz, zx, zy, zz]
             eps_tensor = np.zeros((eps.shape[0], 9))
