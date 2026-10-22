@@ -2,6 +2,128 @@ from typing import Union, Dict
 import numpy as np
 from meshio import Mesh
 
+def get_rigid_body_modes(nelx: int, nely: int,
+                         nelz: Union[None,int] = None) -> np.ndarray:
+    """
+    Rigid body modes (translations and rotations) of a regular mesh.
+
+    The dof numbering is the one used by topoptlab: the node (i,j) has the
+    index n = i*(nely+1)+j in 2d and n = (nelx+1)*(nely+1)*k + (nely+1)*i + j
+    in 3d. The dofs of a node are ordered x, y (, z). The physical
+    coordinates are x = i, y = nely - j, z = k (cf. export_vtk).
+
+    Parameters
+    ----------
+    nelx : int
+        number of elements in x direction.
+    nely : int
+        number of elements in y direction.
+    nelz : int or None
+        number of elements in z direction. Only important if ndim is 3.
+
+    Returns
+    -------
+    np.ndarray
+        matrix of shape (ndof, nmodes) whose columns are the rigid body
+        modes in the dof space. There are 3 modes in 2d (two translations
+        and one rotation) and 6 modes in 3d.
+
+    """
+    if nelz is None:
+        ndim = 2
+        coords = [np.repeat(np.arange(nelx+1), nely+1).astype(float),
+                  np.tile(np.arange(nely+1), nelx+1).astype(float)]
+        # y coordinate is inverted w.r.t. the node index
+        coords[1] = nely - coords[1]
+    else:
+        ndim = 3
+        coords = [np.tile(np.repeat(np.arange(nelx+1), nely+1),
+                           nelz+1).astype(float),
+                  np.tile(np.arange(nely+1), (nelx+1)*(nelz+1)).astype(float),
+                  np.repeat(np.arange(nelz+1), (nelx+1)*(nely+1)).astype(float)]
+        coords[1] = nely - coords[1]
+    nnode = coords[0].shape[0]
+    # centre of the mesh, the rotations are taken about it
+    centre = [0.5*(c.min()+c.max()) for c in coords]
+    modes = []
+    # translations
+    for d in range(ndim):
+        mode = np.zeros((nnode, ndim))
+        mode[:, d] = 1.0
+        modes.append(mode)
+    # rotations
+    if ndim == 2:
+        # rotation about the z-axis
+        mode = np.zeros((nnode, ndim))
+        mode[:, 0] = -(coords[1]-centre[1])
+        mode[:, 1] = (coords[0]-centre[0])
+        modes.append(mode)
+    else:
+        # rotation about the x-axis
+        mode = np.zeros((nnode, ndim))
+        mode[:, 1] = -(coords[2]-centre[2])
+        mode[:, 2] = (coords[1]-centre[1])
+        modes.append(mode)
+        # rotation about the y-axis
+        mode = np.zeros((nnode, ndim))
+        mode[:, 0] = (coords[2]-centre[2])
+        mode[:, 2] = -(coords[0]-centre[0])
+        modes.append(mode)
+        # rotation about the z-axis
+        mode = np.zeros((nnode, ndim))
+        mode[:, 0] = -(coords[1]-centre[1])
+        mode[:, 1] = (coords[0]-centre[0])
+        modes.append(mode)
+    # map the nodal modes onto the dofs: the dofs of node n are ndim*n ... ndim*n+ndim-1
+    N = np.stack(modes, axis=-1).reshape(nnode*ndim, len(modes))
+    return N
+
+def remove_rigid_body_motion(u: np.ndarray, nelx: int, nely: int,
+                             nelz: Union[None,int] = None) -> np.ndarray:
+    """
+    Remove the rigid body motion from a displacement field.
+
+    A displacement field is only defined up to a rigid body motion (two
+    translations and one rotation in 2d). If the boundary conditions do not
+    constrain these modes, the solution of the linear system is not unique and
+    the solver returns an arbitrary representative of that family. For a pure
+    shear test this shows up as a skewed ("anisotropic") displacement field:
+    the rotation adds -theta to du_x/dy and +theta to du_y/dx.
+
+    This function projects the displacement field onto the orthogonal
+    complement of the rigid body modes, i.e. it removes the (arbitrary) rigid
+    body part. The strain - and therefore the stress and the damage
+    evolution - is not affected by this projection.
+
+    Parameters
+    ----------
+    u : np.ndarray
+        displacement field of shape (ndof,) or (ndof, nloadcases).
+    nelx : int
+        number of elements in x direction.
+    nely : int
+        number of elements in y direction.
+    nelz : int or None
+        number of elements in z direction. Only important if ndim is 3.
+
+    Returns
+    -------
+    np.ndarray
+        displacement field without rigid body motion, same shape as u.
+
+    """
+    u = np.asarray(u, dtype=float)
+    is_vector = (u.ndim == 1)
+    uu = u.reshape(-1, 1) if is_vector else u
+    N = get_rigid_body_modes(nelx=nelx, nely=nely, nelz=nelz)
+    if uu.shape[0] != N.shape[0]:
+        raise ValueError(
+            f"u has {uu.shape[0]} dofs, but the mesh has {N.shape[0]} dofs.")
+    # orthogonal projection onto the complement of the rigid body modes
+    coeffs, _, _, _ = np.linalg.lstsq(N, uu, rcond=None)
+    uu = uu - N @ coeffs
+    return uu.reshape(u.shape) if is_vector else uu
+
 def export_vtk(filename: str, 
                nelx: int, nely: int, 
                xPhys: Union[None,np.ndarray] = None,
@@ -58,9 +180,12 @@ def export_vtk(filename: str,
         von Mises stress.
     eps : np.ndarray, optional
         element strain field of shape (nelx*nely, 4) (2D), stored in the order
-        [eps_xx, eps_xy, eps_yy, eps_yx] where eps_xy == eps_yx by symmetry.
+        [du_x/dx, du_x/dy, du_y/dx, du_y/dy] (the derivatives of the
+        displacement field with respect to the physical coordinates, cf.
+        femfrac.fracture.get_element_strain).
         Written to the vtk as the scalar cell arrays "eps_xx", "eps_yy", "eps_xy"
-        (shear taken as the mean of the two duplicate entries) plus a symmetric
+        (eps_xx = du_x/dx, eps_yy = du_y/dy and eps_xy = 0.5*(du_x/dy+du_y/dx),
+        i.e. the symmetric tensor component) plus a symmetric
         second-order tensor "eps_tensor" in VTK component order
         [xx, xy, xz, yx, yy, yz, zx, zy, zz] for tensor glyphs in Paraview.
         A 1-D array (nelx*nely,) is written as a single scalar "eps".
@@ -168,10 +293,10 @@ def export_vtk(filename: str,
         if eps.ndim == 1:
             el_data["eps"] = [eps]
         elif eps.ndim == 2 and eps.shape[1] == 4:
-            # stored as [eps_xx, eps_xy, eps_yy, eps_yx], eps_xy == eps_yx
+            # stored as [du_x/dx, du_x/dy, du_y/dx, du_y/dy]
             eps_xx = eps[:, 0]
-            eps_xy = 0.5 * (eps[:, 1] + eps[:, 3])
-            eps_yy = eps[:, 2]
+            eps_yy = eps[:, 3]
+            eps_xy = 0.5 * (eps[:, 1] + eps[:, 2])
             # symmetric 2nd-order tensor in VTK order
             # [xx, xy, xz, yx, yy, yz, zx, zy, zz]
             eps_tensor = np.zeros((eps.shape[0], 9))
