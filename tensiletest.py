@@ -158,7 +158,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
                    nelz=nelz,
                    elem_size=l,
                    xPhys=xPhys,
-                   u=u,f=f,
+                   u=remove_rigid_body_motion(u, nelx=nelx, nely=nely, nelz=nelz),f=f,
                    nodal_variables=fixed_or_not_dict,
                    element_variables={'yield' : thresholds},
                    eps=eps,
@@ -214,8 +214,8 @@ def get_stiffnessmatrix(nelx, nely, nelz=None,
 
 if __name__ == "__main__":
     #
-    nelx = 10
-    nely = 10 
+    nelx = 100
+    nely = 100 
     nelz = None
     steps = 10
     penal=3 
@@ -281,7 +281,7 @@ if __name__ == "__main__":
                    nelz=nelz,
                    elem_size=l,
                    xPhys=xPhys - damage,
-                   u=u,f=f, eps=eps, nodal_variables=fixed_or_not_dict,
+                   u=remove_rigid_body_motion(u, nelx=nelx, nely=nely, nelz=nelz),f=f, eps=eps, nodal_variables=fixed_or_not_dict,
                    element_variables={'yield' : yield_scaled},
                    stress_vm=sigma_vm)
         f, xPhys, damage, eps, eps_pl, yield_scaled, E_scaled = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l,xPhys, damage, penal, E_scaled, Emin, Emax, nu)
