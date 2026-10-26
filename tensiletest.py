@@ -106,7 +106,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
     else:
         f = f_input
     # interpolate material properties
-    yield_scaled = get_yield(thresholds, ymin, ymax) 
+    yield_scaled = weibull_redistribute(thresholds) 
     # entries of stiffness matrix
     rhs = f
     # apply boundary conditions to matrix
@@ -160,7 +160,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
                    xPhys=xPhys,
                    u=remove_rigid_body_motion(u, nelx=nelx, nely=nely, nelz=nelz),f=f,
                    nodal_variables=fixed_or_not_dict,
-                   element_variables={'yield' : thresholds},
+                   element_variables={'yield' : yield_scaled},
                    eps=eps,
                    stress_vm=sigma_vm)
     return u, f, eps, eps_pl,  xPhys, edofMat, yield_scaled, sigma_vm, free, fixed 
@@ -214,10 +214,10 @@ def get_stiffnessmatrix(nelx, nely, nelz=None,
 
 if __name__ == "__main__":
     #
-    nelx = 100
-    nely = 100 
+    nelx = 10
+    nely = 10 
     nelz = None
-    steps = 10
+    steps = 100
     penal=3 
     Emax=1.0
     Emin=1e-9
@@ -266,8 +266,6 @@ if __name__ == "__main__":
                                            rhs=rhs[free], 
                                            solver=solver,
                                            preconditioner=preconditioner)
-        # remove the rigid body motion of the displacement field (cf. above)
-        u = remove_rigid_body_motion(u, nelx=nelx, nely=nely, nelz=nelz)
         eps = np.array(get_element_strain(u, edofMat, nelz, l)) 
         eps_pl = np.zeros(eps.shape, dtype=float)
         sigma_vm = get_vm_stress(u, xPhys, edofMat,nelx, nely, nelz, l)

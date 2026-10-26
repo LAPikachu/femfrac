@@ -1,11 +1,16 @@
 import numpy as np
 
 def weibull_redistribute(values, k=4.0, scale=1.0):
-    n = len(values)
-    return (np.random.weibull(k, size = n) * scale).tolist()
+    if np.isscalar(values):
+        value = (np.random.weibull(k, size = 1) * scale).item()
+        return value
+    else:
+        n = len(values)
+        return np.array((np.random.weibull(k, size = n) * scale).tolist())
 
-def get_yield(xPhys, ymin, ymax, penal = 3):
-    return (ymin + xPhys** penal*(ymax-ymin))
+def get_yield(thresholds, ymin, ymax, penal = 3):
+    thresholds = np.asarray(thresholds)
+    return ymin + thresholds**penal * (ymax - ymin)
 
 if __name__ == "__main__":
     weibull_sigma_dict = {0.5 : [], 1.0 : [], 1.5 : [] }

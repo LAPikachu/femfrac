@@ -1,7 +1,7 @@
 import numpy as np
 from topoptlab.elements.stress_measures import von_mises_stress
 from topoptlab.elements.bilinear_quadrilateral import bmatrix_rectangle
-from femfrac.disorder import get_yield
+from femfrac.disorder import get_yield, weibull_redistribute
 from scipy.ndimage import gaussian_filter
 from topoptlab.utils import map_eltoimg, map_imgtoel
 
@@ -102,7 +102,7 @@ def damage_element(index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal,
     strain (i.e. eps0 = -eps_current); relax<1.0 partially relaxes it.
     """
     eps_e = eps - eps_pl
-    eps_pl, delta_eps_pl = increment_eps_pl(eps_e, eps_pl, index, xPhys, sigma_vm, shear_mod = 0.5, d_e_0 = 1 ) 
+    eps_pl, delta_eps_pl = increment_eps_pl(eps_e, eps_pl, index, xPhys, sigma_vm, shear_mod = 0.5, d_e_0 = relax ) 
     B_e = bmatrix_rectangle(xi=np.array([0.]), eta=np.array([0.]),
                             a=l, b=l)[0]      # (3,8)
     eps_rearranged = np.array([delta_eps_pl[0], delta_eps_pl[2], delta_eps_pl[1]]) # arrange to dux/dx, duy/dy, dux/dy
@@ -125,15 +125,19 @@ def damage_element(index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal,
     f_new.squeeze(-1)
     return f_new, xPhys
 
-def burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat, l, xPhys, damage, penal, E_scaled, Emin, Emax, nu, t=1., relax=0.5):
+def burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat,
+                     l, xPhys, damage, penal, E_scaled, Emin, Emax, nu,
+                     t=1., relax=0.5):
     # interpolate over element
     #sigma_vm = von_mises_stress(T, xPhys, edofMat, nelz)
     ratios = np.array(sigma_vm).reshape(-1) / np.array(yield_scaled).reshape(-1)
     max_element_index  = np.argmax(ratios)
     damage[max_element_index] += relax
-    yield_scaled[max_element_index] = get_yield(yield_scaled[max_element_index] - damage[max_element_index],
-                                                ymin=1.1, ymax=5.5)
-    f_new, _ = damage_element(max_element_index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal, E_scaled, Emin, Emax, nu, t=1., relax=1.0)
+    new_sigma_0 = np.maximum(0.0, 1.0 + damage[max_element_index])
+    yield_scaled[max_element_index] = weibull_redistribute(new_sigma_0)
+    f_new, _ = damage_element(max_element_index, f, u, eps, eps_pl, sigma_vm,
+                              edofMat, l, xPhys, penal, E_scaled, Emin, Emax,
+                              nu, t=1., relax=relax)
     return f_new, xPhys, damage, eps, eps_pl, yield_scaled, E_scaled
 
 def get_element_strain(u, edofMat, nelz, l=1.0):
