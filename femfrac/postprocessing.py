@@ -140,6 +140,7 @@ def export_vtk(filename: str,
                volfrac: Union[None,float] = None,
                stress_vm: Union[None,float, np.ndarray] = None,
                eps: Union[None,np.ndarray] = None,
+               eps_pl: Union[None,np.ndarray] = None,
                vectors: Union[None,np.ndarray] = None) -> None:
     """
     Export design to a vtk file for visualisation e. g. with Paraview.
@@ -308,6 +309,26 @@ def export_vtk(filename: str,
         else:
             raise ValueError(
                 f"eps must have shape (n_elem,) or (n_elem, 4), got {eps.shape}")
+        if eps_pl is not None:
+            eps_pl = np.asarray(eps_pl, dtype=float)
+            if eps_pl.ndim == 1:
+                el_data["eps_pl"] = [eps_pl]
+            elif eps_pl.ndim == 2 and eps_pl.shape[1] == 4:
+                # stored as [du_x/dx, du_x/dy, du_y/dx, du_y/dy]
+                eps_pl_xx = eps_pl[:, 0]
+                eps_pl_yy = eps_pl[:, 3]
+                eps_pl_xy = 0.5 * (eps_pl[:, 1] + eps_pl[:, 2])
+                # symmetric 2nd-order tensor in VTK order
+                # [xx, xy, xz, yx, yy, yz, zx, zy, zz]
+                eps_pl_tensor = np.zeros((eps_pl.shape[0], 9))
+                eps_pl_tensor[:, 0] = eps_pl_xx
+                eps_pl_tensor[:, 1] = eps_pl_xy
+                eps_pl_tensor[:, 3] = eps_pl_xy
+                eps_pl_tensor[:, 4] = eps_pl_yy
+                el_data["eps_pl_tensor"] = [eps_pl_tensor]
+            else:
+                raise ValueError(
+                    f"eps_pl must have shape (n_elem,) or (n_elem, 4), got {eps_pl.shape}")
     if vectors is not None:
         el_data["vectors"] = [np.asarray(vectors, dtype=float)]
     if element_variables is not None:
