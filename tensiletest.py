@@ -162,6 +162,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
                    nodal_variables=fixed_or_not_dict,
                    element_variables={'yield' : yield_scaled},
                    eps=eps,
+                   eps_pl = eps_pl,
                    stress_vm=sigma_vm)
     return u, f, eps, eps_pl,  xPhys, edofMat, yield_scaled, sigma_vm, free, fixed 
 
@@ -223,7 +224,7 @@ if __name__ == "__main__":
     Emin=1e-9
     nu=0.3    
     l=1.
-    solver = "scipy-direct"
+    solver = "cvxopt-cholmod"
     preconditioner=None 
     #
     import sys
@@ -267,7 +268,7 @@ if __name__ == "__main__":
                                            solver=solver,
                                            preconditioner=preconditioner)
         eps = np.array(get_element_strain(u, edofMat, nelz, l)) 
-        eps_pl = np.zeros(eps.shape, dtype=float)
+        #eps_pl = np.zeros(eps.shape, dtype=float)
         sigma_vm = get_vm_stress(u, xPhys, edofMat,nelx, nely, nelz, l)
         fixed_or_not = np.zeros(f.shape[0])
         fixed_or_not[fixed] = 1
@@ -279,6 +280,7 @@ if __name__ == "__main__":
                    nelz=nelz,
                    elem_size=l,
                    xPhys=xPhys - damage,
+                   eps_pl=eps_pl,
                    u=remove_rigid_body_motion(u, nelx=nelx, nely=nely, nelz=nelz),f=f, eps=eps, nodal_variables=fixed_or_not_dict,
                    element_variables={'yield' : yield_scaled},
                    stress_vm=sigma_vm)

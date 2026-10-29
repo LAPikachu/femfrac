@@ -75,7 +75,7 @@ def get_element_strain(u, edofMat, index, B_e):
     return B_e @ ue                     # (3,) -> [eps_xx, eps_yy, gamma_xy]
 
 def get_flow_direction(eps, C , sigma_vm_loc, index): 
-   sxx, syy, sxy =  get_stress_tensor(eps, C)[:,index] # TODO only calculate again for one single (failing) element
+   sxx, syy, sxy =  get_stress_tensor(eps[index], C[index], index)
    delta_eps_xx =(2*sxx - syy)/(2*sigma_vm_loc)
    delta_eps_yy = (2*syy - sxx)/(2*sigma_vm_loc)
    delta_eps_xy = 3 * sxy / sigma_vm_loc  
@@ -138,6 +138,7 @@ def burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat,
     f_new, _ = damage_element(max_element_index, f, u, eps, eps_pl, sigma_vm,
                               edofMat, l, xPhys, penal, E_scaled, Emin, Emax,
                               nu, t=1., relax=relax)
+    f_disp = 0 
     return f_new, xPhys, damage, eps, eps_pl, yield_scaled, E_scaled
 
 def get_element_strain(u, edofMat, nelz, l=1.0):
@@ -193,13 +194,21 @@ def get_element_strain(u, edofMat, nelz, l=1.0):
         eps = np.column_stack((eps_x, eps_y))
         return eps 
 
-def get_stress_tensor(eps, C):
-    delta_ux = eps[:,:2]
-    delta_uy = eps[:,2:]
-    sxx = C * delta_ux[:,0][...,None] # [dux/dx, dux/dy]  
-    syy = C * delta_uy[:,1][...,None] # [duy/dx, duy/dy]  
-    sxy = C * ((delta_ux[:,1][...,None] + delta_uy[:,0][...,None])/2)
-    return np.array([sxx, syy, sxy])
+def get_stress_tensor(eps, C, index=None):
+    if index==None:
+        delta_ux = eps[:,:2]
+        delta_uy = eps[:,2:]
+        sxx = C * delta_ux[:,0][...,None] # [dux/dx, dux/dy]  
+        syy = C * delta_uy[:,1][...,None] # [duy/dx, duy/dy]  
+        sxy = C * ((delta_ux[:,1][...,None] + delta_uy[:,0][...,None])/2)
+        return np.array([sxx, syy, sxy])
+    else:
+        delta_ux = eps[:2]
+        delta_uy = eps[2:]
+        sxx = C * delta_ux[0][...,None] # [dux/dx, dux/dy]  
+        syy = C * delta_uy[1][...,None] # [duy/dx, duy/dy]  
+        sxy = C * ((delta_ux[1][...,None] + delta_uy[0][...,None])/2)
+        return np.array([sxx, syy, sxy])
 
 def gaussian_filter_eps(eps, nelx, nely, sigma=1.0, mode="nearest"):
     """Apply an isotropic Gaussian filter to an element-based strain field.
