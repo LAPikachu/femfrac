@@ -75,7 +75,7 @@ def get_element_strain(u, edofMat, index, B_e):
     return B_e @ ue                     # (3,) -> [eps_xx, eps_yy, gamma_xy]
 
 def get_flow_direction(eps, C , sigma_vm_loc, index): 
-   sxx, syy, sxy =  get_stress_tensor(eps[index], C[index], index)
+   sxx, syy, sxy =  get_stress_tensor(eps[index], index=index)
    delta_eps_xx =(2*sxx - syy)/(2*sigma_vm_loc)
    delta_eps_yy = (2*syy - sxx)/(2*sigma_vm_loc)
    delta_eps_xy = 3 * sxy / sigma_vm_loc  
@@ -138,7 +138,7 @@ def burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat,
     f_new, _ = damage_element(max_element_index, f, u, eps, eps_pl, sigma_vm,
                               edofMat, l, xPhys, penal, E_scaled, Emin, Emax,
                               nu, t=1., relax=relax)
-    f_disp = 0 
+    # f_disp = 0 #TODO: dispers (gaussian?) f 
     return f_new, xPhys, damage, eps, eps_pl, yield_scaled, E_scaled
 
 def get_element_strain(u, edofMat, nelz, l=1.0):
@@ -194,20 +194,26 @@ def get_element_strain(u, edofMat, nelz, l=1.0):
         eps = np.column_stack((eps_x, eps_y))
         return eps 
 
-def get_stress_tensor(eps, C, index=None):
+def get_stress_tensor(eps, lam=90, my=30, index=None, mode_palain_strain = True):
+    # lam = 91.9 & my = 32.3 from https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.107.185502 
+    c_11 = lam + 2*my
+    c_12 = lam
+    c_66 = my
     if index==None:
-        delta_ux = eps[:,:2]
-        delta_uy = eps[:,2:]
-        sxx = C * delta_ux[:,0][...,None] # [dux/dx, dux/dy]  
-        syy = C * delta_uy[:,1][...,None] # [duy/dx, duy/dy]  
-        sxy = C * ((delta_ux[:,1][...,None] + delta_uy[:,0][...,None])/2)
+        eps_1 = eps[:,0]
+        eps_2 = eps[:,2]
+        gamma_12 = eps[:,1]
+        sxx = c_11 * eps_1[...,None] + c_12 * eps_2[...,None] # [dux/dx, dux/dy]  
+        syy = c_12 * eps_1[...,None] + c_11 * eps_2[...,None] # [duy/dx, duy/dy]  
+        sxy = c_66 * gamma_12[...,None]/2
         return np.array([sxx, syy, sxy])
     else:
-        delta_ux = eps[:2]
-        delta_uy = eps[2:]
-        sxx = C * delta_ux[0][...,None] # [dux/dx, dux/dy]  
-        syy = C * delta_uy[1][...,None] # [duy/dx, duy/dy]  
-        sxy = C * ((delta_ux[1][...,None] + delta_uy[0][...,None])/2)
+        eps_1 = eps[0]
+        eps_2 = eps[2]
+        gamma_12 = eps[1]
+        sxx = c_11 * eps_1[...,None] + c_12 * eps_2[...,None] # [dux/dx, dux/dy]  
+        syy = c_12 * eps_1[...,None] + c_11 * eps_2[...,None] # [duy/dx, duy/dy]  
+        sxy = c_66 * gamma_12[...,None]/2
         return np.array([sxx, syy, sxy])
 
 def gaussian_filter_eps(eps, nelx, nely, sigma=1.0, mode="nearest"):
@@ -240,7 +246,7 @@ def get_vm_stress(u, xPhys, edofMat,nelx, nely, nelz : None, l=1.0):
     C = xPhys.reshape(-1,1)
     eps_unfiltered = get_element_strain(u, edofMat, nelz, l)
     eps = gaussian_filter_eps(eps_unfiltered, nelx, nely, sigma=1.0, mode="nearest")
-    sxx, syy, sxy = get_stress_tensor(eps, C)
+    sxx, syy, sxy = get_stress_tensor(eps)
     sigma_vm = von_mises_stress(np.squeeze([sxx, syy, sxy], axis=2).T, ndim=2)
 #    elif edofMat.shape[1] == 12: #check if 3d-vector-field
 #        raise NotImplementedError("Function not implemented for 3d/ 3d-vector-field.")

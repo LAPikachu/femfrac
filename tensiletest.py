@@ -215,8 +215,8 @@ def get_stiffnessmatrix(nelx, nely, nelz=None,
 
 if __name__ == "__main__":
     #
-    nelx = 10
-    nely = 10 
+    nelx = 100
+    nely = 100 
     nelz = None
     steps = 100
     penal=3 
