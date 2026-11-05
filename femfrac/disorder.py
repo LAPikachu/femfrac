@@ -1,6 +1,6 @@
 import numpy as np
 
-def weibull_redistribute(values, k=4.0, scale=1.0):
+def weibull_redistribute(values, k=10., scale=1.):
     if np.isscalar(values):
         value = (np.random.weibull(k, size = 1) * scale).item()
         return value

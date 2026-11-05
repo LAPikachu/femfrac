@@ -74,7 +74,7 @@ def get_element_strain(u, edofMat, index, B_e):
     ue = u[edofMat[index], 0]          # (8,) nodal dof values, dof order = edofMat's
     return B_e @ ue                     # (3,) -> [eps_xx, eps_yy, gamma_xy]
 
-def get_flow_direction(eps, C , sigma_vm_loc, index): 
+def get_flow_direction(eps, sigma_vm_loc, index): 
    sxx, syy, sxy =  get_stress_tensor(eps[index], index=index)
    delta_eps_xx =(2*sxx - syy)/(2*sigma_vm_loc)
    delta_eps_yy = (2*syy - sxx)/(2*sigma_vm_loc)
@@ -82,11 +82,10 @@ def get_flow_direction(eps, C , sigma_vm_loc, index):
    direction = np.array([delta_eps_xx, delta_eps_xy, delta_eps_yy, delta_eps_xy]) 
    return direction
 
-def increment_eps_pl(eps, eps_pl, index, E_scaled, sigma_vm, shear_mod = 0.5, d_e_0 = 0.5):
-    C = E_scaled.reshape(-1,1)
-    flow_dir = get_flow_direction(eps, C, sigma_vm[index], index).squeeze(-1) # [dux/dx, duy/dx, duy/dy, duy/dx]
+def increment_eps_pl(eps, eps_pl, index, E_scaled, sigma_vm, shear_mod = 30, de_0 = 0.005):
+    flow_dir = get_flow_direction(eps, sigma_vm[index], index).squeeze(-1) # [dux/dx, duy/dx, duy/dy, duy/dx]
     # TODO: gaussian to fluctiate flow dir like: new_flow_dir = M(phi).T @ flow_dir M(phic)
-    delta_eps_pl = d_e_0 * 2 * sigma_vm[index]/shear_mod
+    delta_eps_pl = de_0 * 2 * sigma_vm[index]/shear_mod #TODO: Fix increment tooo big!
     increment = flow_dir * delta_eps_pl
     print(eps_pl[index])
     print(increment)
@@ -95,14 +94,14 @@ def increment_eps_pl(eps, eps_pl, index, E_scaled, sigma_vm, shear_mod = 0.5, d_
     return eps_pl, increment 
     
 
-def damage_element(index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal, E_scaled, Emin, Emax, nu, t=1., relax=0.1):
+def damage_element(index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal, E_scaled, Emin, Emax, nu, t=1., relax=0.005):
     """
     Damage one element by adding an eigenstrain-equivalent nodal force to f.
     K is untouched. relax=1.0 fully relaxes the element's current elastic
     strain (i.e. eps0 = -eps_current); relax<1.0 partially relaxes it.
     """
     eps_e = eps - eps_pl
-    eps_pl, delta_eps_pl = increment_eps_pl(eps_e, eps_pl, index, xPhys, sigma_vm, shear_mod = 0.5, d_e_0 = relax ) 
+    eps_pl, delta_eps_pl = increment_eps_pl(eps_e, eps_pl, index, xPhys, sigma_vm, shear_mod = nu, de_0 = relax ) 
     B_e = bmatrix_rectangle(xi=np.array([0.]), eta=np.array([0.]),
                             a=l, b=l)[0]      # (3,8)
     eps_rearranged = np.array([delta_eps_pl[0], delta_eps_pl[2], delta_eps_pl[1]]) # arrange to dux/dx, duy/dy, dux/dy
@@ -125,16 +124,16 @@ def damage_element(index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal,
     f_new.squeeze(-1)
     return f_new, xPhys
 
-def burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, edofMat,
+def burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, sigma_0, edofMat,
                      l, xPhys, damage, penal, E_scaled, Emin, Emax, nu,
-                     t=1., relax=0.5):
+                     t=1., relax=0.005):
     # interpolate over element
     #sigma_vm = von_mises_stress(T, xPhys, edofMat, nelz)
-    ratios = np.array(sigma_vm).reshape(-1) / np.array(yield_scaled).reshape(-1)
-    max_element_index  = np.argmax(ratios)
+    phi = np.array(sigma_vm).reshape(-1) - np.array(yield_scaled).reshape(-1)
+    max_element_index  = np.argmax(phi)
     damage[max_element_index] += relax
-    new_sigma_0 = np.maximum(0.0, 1.0 + damage[max_element_index])
-    yield_scaled[max_element_index] = weibull_redistribute(new_sigma_0)
+    rescale = sigma_0*np.maximum(0.0, 1.0 + damage[max_element_index])
+    yield_scaled[max_element_index] = weibull_redistribute(sigma_0, scale=rescale)
     f_new, _ = damage_element(max_element_index, f, u, eps, eps_pl, sigma_vm,
                               edofMat, l, xPhys, penal, E_scaled, Emin, Emax,
                               nu, t=1., relax=relax)
@@ -194,8 +193,10 @@ def get_element_strain(u, edofMat, nelz, l=1.0):
         eps = np.column_stack((eps_x, eps_y))
         return eps 
 
-def get_stress_tensor(eps, lam=90, my=30, index=None, mode_palain_strain = True):
-    # lam = 91.9 & my = 32.3 from https://journals.aps.org/prl/abstract/10.1103/PhysRevLett.107.185502 
+def get_stress_tensor(eps, E=100, nu=0.42, index=None, mode_plain_strain = True):
+    # see https://en.wikipedia.org/wiki/Lam%C3%A9_parameters
+    lam = E*nu/((1+nu)*(1-2*nu))
+    my = E/(2*(1+nu))
     c_11 = lam + 2*my
     c_12 = lam
     c_66 = my
@@ -216,7 +217,7 @@ def get_stress_tensor(eps, lam=90, my=30, index=None, mode_palain_strain = True)
         sxy = c_66 * gamma_12[...,None]/2
         return np.array([sxx, syy, sxy])
 
-def gaussian_filter_eps(eps, nelx, nely, sigma=1.0, mode="nearest"):
+def gaussian_filter_eps(eps, nelx, nely, sigma=3.0, mode="nearest"):
     """Apply an isotropic Gaussian filter to an element-based strain field.
 
     Parameters
@@ -245,7 +246,7 @@ def gaussian_filter_eps(eps, nelx, nely, sigma=1.0, mode="nearest"):
 def get_vm_stress(u, xPhys, edofMat,nelx, nely, nelz : None, l=1.0):
     C = xPhys.reshape(-1,1)
     eps_unfiltered = get_element_strain(u, edofMat, nelz, l)
-    eps = gaussian_filter_eps(eps_unfiltered, nelx, nely, sigma=1.0, mode="nearest")
+    eps = gaussian_filter_eps(eps_unfiltered, nelx, nely, sigma=3.0, mode="nearest")
     sxx, syy, sxy = get_stress_tensor(eps)
     sigma_vm = von_mises_stress(np.squeeze([sxx, syy, sxy], axis=2).T, ndim=2)
 #    elif edofMat.shape[1] == 12: #check if 3d-vector-field
