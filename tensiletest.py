@@ -90,7 +90,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
     ymin = ymax*5.
     if nelz is None:
         ndim = 2
-        bc = force_pure_shear_2d
+        bc = force_simple_shear_2d
     else:
         ndim = 3
         bc = tensiletest_3d
@@ -173,7 +173,7 @@ def get_stiffnessmatrix(nelx, nely, nelz=None,
         ndim = 2
         lk = lk_linear_elast_2d
         create_edofMat = create_edofMat2d
-        bc = force_pure_shear_2d
+        bc = force_simple_shear_2d
     else:
         ndim = 3
         lk = lk_linear_elast_3d
@@ -215,8 +215,8 @@ def get_stiffnessmatrix(nelx, nely, nelz=None,
 
 if __name__ == "__main__":
     #
-    nelx = 256
-    nely = 256 
+    nelx = 100 
+    nely = 100
     nelz = None
     steps = 100
     penal=3 
@@ -256,7 +256,7 @@ if __name__ == "__main__":
                                                                                Emax=Emax, Emin=Emin, penal=penal, l=l, nu=nu,
                                                                                KE=KE, edofMat=edofMat, ndof=ndof, sigma_0=sigma_0,
                                                                                nelz=None, xPhys=xPhys, lin_solver=solver,
-                                                                               file="visualisation/shear/force_pure_shear_test_0",
+                                                                               file="visualisation/shear/force_simple_shear_test_0",
                                                                                thresholds=thresholds)
     f, xPhys, damage, eps, eps_pl, yield_scaled, E_scaled = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, sigma_0, edofMat, l,xPhys, damage, penal, E_scaled, Emin, Emax, nu)
    
@@ -274,7 +274,7 @@ if __name__ == "__main__":
         fixed_or_not = np.zeros(f.shape[0])
         fixed_or_not[fixed] = 1
         fixed_or_not_dict = {"fixed_x" : fixed_or_not[::2,None], "fixed_y" : fixed_or_not[1::2,None]}
-        file=f"visualisation/shear/force_pure_shear_test_{step}" 
+        file=f"visualisation/shear/force_simple_shear_test_{step}" 
         export_vtk(filename=file,
                    nelx=nelx,
                    nely=nely,

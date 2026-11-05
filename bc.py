@@ -143,8 +143,16 @@ def force_simple_shear_2d(nelx: int, nely: int,
     f = np.zeros((ndof, 1))
     u = np.zeros((ndof, 1))
     # applied force for simple shear
-    f[::4] = 1. 
-    f[2::4] = -1. 
+    axis = kwargs.get("axis", "x")
+    node = np.arange((nelx+1)*(nely+1))
+    if axis == "x":
+        stripe_index = node % (nely+1)  # row index j
+    elif axis == "y":
+        stripe_index = node // (nely+1)  # column index i
+    else:
+        raise ValueError("axis must be 'x' or 'y'.")
+    stripe_sign = np.where(stripe_index % 2 == 0, 1.0, -1.0)
+    f[0::2, 0] = stripe_sign
     # fixed dofs
     # in x-direction and the rotation) are removed by pinning the x-displacement
     # of two nodes of the left side with different y-coordinates. the reaction
@@ -249,11 +257,21 @@ def force_pure_shear_2d(nelx: int, nely: int,
     # Solution and RHS vectors
     f = np.zeros((ndof, 1))
     u = np.zeros((ndof, 1))
-    # applied force for simple shear
-    f[::4] = 1. 
-    f[1::4] = 1. 
-    f[2::4] = -1. 
-    f[3::4] = -1. 
+    # applied force for pure shear: alternate the sign from row to row so the
+    # stripes are parallel to the x-axis (axis="y" gives columns parallel to
+    # the y-axis). using the node parity instead mixes i and j and creates
+    # diagonal stripes.
+    axis = kwargs.get("axis", "x")
+    node = np.arange((nelx+1)*(nely+1))
+    if axis == "x":
+        stripe_index = node % (nely+1)  # row index j
+    elif axis == "y":
+        stripe_index = node // (nely+1)  # column index i
+    else:
+        raise ValueError("axis must be 'x' or 'y'.")
+    stripe_sign = np.where(stripe_index % 2 == 0, 1.0, -1.0)
+    f[0::2, 0] = stripe_sign
+    f[1::2, 0] = stripe_sign
     # fixed dofs
     # in x-direction and the rotation) are removed by pinning the x-displacement
     # of two nodes of the left side with different y-coordinates. the reaction

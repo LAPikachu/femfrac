@@ -126,7 +126,7 @@ def damage_element(index, f, u, eps, eps_pl, sigma_vm, edofMat, l, xPhys, penal,
 
 def burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, sigma_0, edofMat,
                      l, xPhys, damage, penal, E_scaled, Emin, Emax, nu,
-                     t=1., relax=0.005):
+                     t=1., relax=0.0005):
     # interpolate over element
     #sigma_vm = von_mises_stress(T, xPhys, edofMat, nelz)
     phi = np.array(sigma_vm).reshape(-1) - np.array(yield_scaled).reshape(-1)
