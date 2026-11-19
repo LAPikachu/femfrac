@@ -5,11 +5,14 @@ import numpy as np
 # set up finite element problem
 from topoptlab.fem import create_matrixinds
 from topoptlab.elements.bilinear_quadrilateral import create_edofMat as create_edofMat2d
+from topoptlab.elements.bilinear_quadrilateral import apply_pbc as apply_pbc2d
 from topoptlab.elements.trilinear_hexahedron import create_edofMat as create_edofMat3d
+from topoptlab.elements.trilinear_hexahedron import apply_pbc as apply_pbc3d
+from topoptlab.example_bc.lin_elast import singlenode
 # default application case that provides boundary conditions, etc.
 #from topoptlab.example_bc.lin_elast import tensiletest_2d,tensiletest_3d
 # different elements/physics
-from topoptlab.elements.linear_elasticity_2d import lk_linear_elast_2d
+from topoptlab.elements.linear_elasticity_2d import lk_linear_elast_2d, lf_strain_2d
 from topoptlab.elements.linear_elasticity_3d import lk_linear_elast_3d
 # generic functions for solving phys. problem
 from topoptlab.fem import assemble_matrix,apply_bc
@@ -17,6 +20,7 @@ from topoptlab.solve_linsystem import solve_lin
 # output final design to a Paraview readable format
 from femfrac.postprocessing import export_vtk, remove_rigid_body_motion
 #from topoptlab.output_designs import export_vtk
+from topoptlab.utils import map_eltoimg, map_imgtoel
 # 
 from topoptlab.log_utils import EmptyLogger,SimpleLogger
 
@@ -37,7 +41,8 @@ def fem_tensiletest(nelx, nely, nelz=None,
                     assembly_mode="full", l=1.,
                     file="visualisation/shear/pure_sheartest",
                     export=True,
-                    thresholds=None):
+                    thresholds=None,
+                    pbc=(False, False, False)):
     """
     Run a single finite element simulation on a regular grid performing a 
     tensile test pulling along x-direction.
@@ -90,7 +95,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
     ymin = ymax*5.
     if nelz is None:
         ndim = 2
-        bc = force_simple_shear_2d
+        bc = singlenode
     else:
         ndim = 3
         bc = tensiletest_3d
@@ -98,9 +103,15 @@ def fem_tensiletest(nelx, nely, nelz=None,
     u,f,fixed,free,_ = bc(nelx=nelx,
                           nely=nely,
                           nelz=nelz,
-                          ndof=ndof,
-                          sign=1,
-                          ymirror=False)
+                          ndof=ndof)
+    u = u[:,:1]
+    f = f[:,:1].squeeze(-1)
+    el_sidelengths = l / np.array([nelx,nely,nelz][:ndim])
+    fe = []
+    eps = np.array([1,0,0])
+    fe = lf_strain_2d(eps,E=Emax, nu=nu,l=el_sidelengths).squeeze(-1)
+    fe_rearr = np.broadcast_to(fe, edofMat.shape)
+    np.add.at(f, edofMat, fe_rearr)
     if f_input is None:
         f = f
     else:
@@ -121,7 +132,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
     # the displacements are only defined up to a rigid body motion. remove it
     # to obtain a reproducible and symmetric displacement field. the strains
     # (and therefore the stresses and the damage evolution) are not affected.
-    u = remove_rigid_body_motion(u, nelx=nelx, nely=nely, nelz=nelz)
+    #u = remove_rigid_body_motion(u, nelx=nelx, nely=nely, nelz=nelz)
     if isinstance(l,float):
         l = np.array( [l for i in np.arange(ndim)])
     if ndim == 2: #TODO: Invoke logger
@@ -145,8 +156,9 @@ def fem_tensiletest(nelx, nely, nelz=None,
         eps = np.array(get_element_strain(u, edofMat, nelz, l)) 
         eps_pl = np.zeros(eps.shape, dtype=float)
     sigma_vm = get_vm_stress(u, xPhys, edofMat,nelx, nely, nelz, l) 
-    print(os.getcwd())
     eps = get_element_strain(u, edofMat, nelz, l)
+    u_img =  map_eltoimg(u, nelx=nelx, nely=nely)
+
     shape_new = f.shape
     fixed_or_not = np.zeros(f.shape[0])
     fixed_or_not[fixed] = 1
@@ -158,7 +170,7 @@ def fem_tensiletest(nelx, nely, nelz=None,
                    nelz=nelz,
                    elem_size=l,
                    xPhys=xPhys,
-                   u=remove_rigid_body_motion(u, nelx=nelx, nely=nely, nelz=nelz),f=f,
+                   u=u,f=f,
                    nodal_variables=fixed_or_not_dict,
                    element_variables={'yield' : yield_scaled},
                    eps=eps,
@@ -168,12 +180,12 @@ def fem_tensiletest(nelx, nely, nelz=None,
 
 def get_stiffnessmatrix(nelx, nely, nelz=None,
                         xPhys=None, penal=3, assembly_mode="full", lin_solver="cvxopt-cholmod", l=1., 
-                        Emax=1.0, Emin=1e-9, nu=0.3,):
+                        Emax=1.0, Emin=1e-9, nu=0.3,pbc=(False, False, False)):
     if nelz is None:
         ndim = 2
         lk = lk_linear_elast_2d
         create_edofMat = create_edofMat2d
-        bc = force_simple_shear_2d
+        bc = singlenode
     else:
         ndim = 3
         lk = lk_linear_elast_3d
@@ -198,6 +210,10 @@ def get_stiffnessmatrix(nelx, nely, nelz=None,
                                             nely=nely,
                                             nelz=nelz,
                                             nnode_dof=nd_ndof)
+
+    edofMat = apply_pbc2d(edofMat=edofMat, pbc=(True,True), nelx=nelx, nely=nely,
+                              nnode_dof=nd_ndof)
+    ndof = edofMat.max() + 1
     # Construct the index pointers for the coo format
     iK,jK = create_matrixinds(edofMat,
                             mode=assembly_mode)
@@ -215,10 +231,10 @@ def get_stiffnessmatrix(nelx, nely, nelz=None,
 
 if __name__ == "__main__":
     #
-    nelx = 100 
-    nely = 100
+    nelx = 10
+    nely = 10
     nelz = None
-    steps = 100
+    steps = 10
     penal=3 
     Emax=100 #GPa
     Emin=1e-9 #???
@@ -227,6 +243,7 @@ if __name__ == "__main__":
     sigma_0=2.7 #GPa
     solver = "cvxopt-cholmod"
     preconditioner=None 
+    pbc=(True, True, True)
     #
     import sys
     if len(sys.argv)>1: 
@@ -250,14 +267,14 @@ if __name__ == "__main__":
     damage = np.squeeze(np.zeros((np.prod(n).astype(int),1)), axis=1) 
     #thresholds = np.random.rand(np.prod(n).astype(int),1) *0.1 + 0.9
     KE, edofMat, ndof, nd_ndof, E_scaled= get_stiffnessmatrix(nelx, nely, nelz=None, xPhys=xPhys, penal=3, 
-                        Emax=Emax, Emin=Emin, nu=nu)
+                        Emax=Emax, Emin=Emin, nu=nu, pbc=pbc)
     
     u, f, eps, eps_pl, xPhys, edofMat, yield_scaled, sigma_vm, free, fixed   = fem_tensiletest(nelx=nelx, nely=nely,
                                                                                Emax=Emax, Emin=Emin, penal=penal, l=l, nu=nu,
                                                                                KE=KE, edofMat=edofMat, ndof=ndof, sigma_0=sigma_0,
                                                                                nelz=None, xPhys=xPhys, lin_solver=solver,
-                                                                               file="visualisation/shear/force_simple_shear_test_0",
-                                                                               thresholds=thresholds)
+                                                                               file="visualisation/tensile/force_tensile_shear_test_0",
+                                                                               thresholds=thresholds, pbc=pbc)
     f, xPhys, damage, eps, eps_pl, yield_scaled, E_scaled = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, sigma_0, edofMat, l,xPhys, damage, penal, E_scaled, Emin, Emax, nu)
    
     KE = apply_bc(K=KE, solver=solver,
@@ -274,7 +291,7 @@ if __name__ == "__main__":
         fixed_or_not = np.zeros(f.shape[0])
         fixed_or_not[fixed] = 1
         fixed_or_not_dict = {"fixed_x" : fixed_or_not[::2,None], "fixed_y" : fixed_or_not[1::2,None]}
-        file=f"visualisation/shear/force_simple_shear_test_{step}" 
+        file=f"visualisation/tensile/force_tensile_test_{step}" 
         export_vtk(filename=file,
                    nelx=nelx,
                    nely=nely,
@@ -282,7 +299,7 @@ if __name__ == "__main__":
                    elem_size=l,
                    xPhys=xPhys - damage,
                    eps_pl=eps_pl,
-                   u=remove_rigid_body_motion(u, nelx=nelx, nely=nely, nelz=nelz),f=f, eps=eps, nodal_variables=fixed_or_not_dict,
+                   u=u, f=f, eps=eps, nodal_variables=fixed_or_not_dict,
                    element_variables={'yield' : yield_scaled},
                    stress_vm=sigma_vm)
         f, xPhys, damage, eps, eps_pl, yield_scaled, E_scaled = burn_max_element(f, u, eps, eps_pl, sigma_vm, yield_scaled, sigma_0, edofMat, l,xPhys, damage, penal, E_scaled, Emin, Emax, nu)
